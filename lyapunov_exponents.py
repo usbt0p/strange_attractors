@@ -172,6 +172,7 @@ def colorInterpolate(color1, color2, t, mode='linear'):
         case 'log': t = math.log(t * (math.e - 1) + 1)  # log scale
         case 'exp': t = (math.exp(t) - 1) / (math.e - 1)  # exponential scale
         case 'cos': t = (1 - math.cos(math.pi * t)) / 2  # cosine scale
+        case 'bicubic': t = t * t * (3 - 2 * t)  # smoothstep
         case _: pass  # default to linear if unknown mode
 
     r = int(color1[0] + t * (color2[0] - color1[0]))
@@ -197,33 +198,92 @@ def drawAttractor(
     maxiterations=MAXITERATIONS,
     interpolation='linear',
     experiment_name="",
-    density_sigma=2,  # New parameter for Gaussian smoothing
+    density_sigma=2,  # Gaussian smoothing for histogram mode
+    cmap='magma'  # Colormap for histogram mode
 ):
-    if background_color:
-        img = Image.new("RGBA", (width, height), background_color)
+    if interpolation == 'histogram':
+        # TODO add transparency option for histogram mode
+        # Ensure valid ranges
+        if xmin == xmax or ymin == ymax:
+            print(f"Invalid range for attractor {n}: xmin={xmin}, xmax={xmax}, ymin={ymin}, ymax={ymax}")
+            return
+
+        # Normalize points to [0, 1] range
+        xs = (np.array(x) - xmin) / (xmax - xmin)
+        ys = (np.array(y) - ymin) / (ymax - ymin)
+
+        # Create a 2D histogram grid
+        H2, _, _ = np.histogram2d(xs, ys, bins=[width, height], range=[[0, 1], [0, 1]])
+
+        # Check if the histogram is empty
+        if np.sum(H2) == 0:
+            print(f"Empty histogram for attractor {n}")
+            return
+
+        # Apply Gaussian smoothing
+        density = gaussian_filter(H2, sigma=density_sigma)
+        # Avoid zero values before log transform
+        density[density < 1e-10] = 1e-10
+        # Apply log transform for better dynamic range
+        img_data = np.log1p(density)
+        # Normalize the image data to [0, 1] for better visualization
+        img_data = (img_data - np.min(img_data)) / (np.max(img_data) - np.min(img_data))
+
+        # Create the plot
+        plt.figure(figsize=(width / 100, height / 100), dpi=100)
+        plt.imshow(
+            img_data.T[::-1],
+            origin="lower",
+            interpolation="bicubic",
+            cmap=cmap,  # Use a perceptually uniform colormap
+        )
+        plt.axis("off")
+        plt.tight_layout()
+
+        # Save the image
+        if experiment_name:
+            n = f"{n}_histogram_{width}x{height}_{maxiterations}"
+
+        if not os.path.exists(f"./{dir}/{experiment_name}"):
+            os.makedirs(f"./{dir}/{experiment_name}")
+        plt.savefig(f"./{dir}/{experiment_name}/{n}.png", bbox_inches="tight", pad_inches=0)
+        plt.close()
+
+        print(f"saved attractor to ./{dir}/{experiment_name}/{n}.png")
     else:
-        img = Image.new("RGBA", (width, height))
-    draw = ImageDraw.Draw(img)
+        if background_color:
+            img = Image.new("RGBA", (width, height), background_color)
+        else:
+            img = Image.new("RGBA", (width, height))
+        draw = ImageDraw.Draw(img)
 
-    # iterate through all points and draw them with the color interpolated
-    for i in range(1, maxiterations):
-        # Map the point to image coordinates
-        ix = int((x[i] - xmin) / (xmax - xmin) * (width - 1))
-        iy = int((y[i] - ymin) / (ymax - ymin) * (height - 1))
-        if 0 <= ix < width and 0 <= iy < height:
-            t = i / maxiterations
-            color = colorInterpolate(start_color, end_color, t, mode=interpolation)
-            draw.point((ix, iy), fill=color)
+        # iterate through all points and draw them with the color interpolated
+        for i in range(1, maxiterations):
+            # Map the point to image coordinates
+            ix = int((x[i] - xmin) / (xmax - xmin) * (width - 1))
+            iy = int((y[i] - ymin) / (ymax - ymin) * (height - 1))
+            if 0 <= ix < width and 0 <= iy < height:
+                t = i / maxiterations
+                color = colorInterpolate(start_color, end_color, t, mode=interpolation)
+                draw.point((ix, iy), fill=color)
 
-    # Save the image
-    if experiment_name:
-        n = f"{n}_{interpolation}_{maxiterations}_{width}x{height}_{maxiterations}_{start_color}_{end_color}"
+        # Save the image
+        if experiment_name:
+            n = f"{n}_{interpolation}_{maxiterations}_{width}x{height}_{maxiterations}_{start_color}_{end_color}"
 
-    if not os.path.exists(f"./{dir}/{experiment_name}"):
-        os.makedirs(f"./{dir}/{experiment_name}")
-    img.save(f"./{dir}/{experiment_name}/{n}.png", "PNG")
-    
-    print(f"saved attractor to ./{dir}/{experiment_name}/{n}.png")
+        if not os.path.exists(f"./{dir}/{experiment_name}"):
+            os.makedirs(f"./{dir}/{experiment_name}")
+
+        # check if file exists and if so find a new name
+        if os.path.exists(f"./{dir}/{experiment_name}/{n}.png"):
+            suffix = 1
+            while os.path.exists(f"./{dir}/{experiment_name}/{n}_{suffix}.png"):
+                suffix += 1
+            n = f"{n}_{suffix}"   
+
+        img.save(f"./{dir}/{experiment_name}/{n}.png", "PNG")
+        
+        print(f"saved attractor to ./{dir}/{experiment_name}/{n}.png")
 
 
 def loadAttractor(n, maxiterations=MAXITERATIONS):
@@ -326,10 +386,11 @@ if __name__ == "__main__":
 
     #createAttractor()
 
-    ex = [542, 620, 6, 210, "989_1", 511, 836] #[107, 224, 292, 756, 903, 814]
+    ex = [54, 93, 99, 107, 139, "210_1", 542, 620, 6, 210, "989_1", 511, 836, 107, 224, 292, 756, 903, 814, 298, 383]
     #backgrounds = [None, (0,0,0,255), (255,255,255,255)]      
-    sizes = [(1500,1500)]#[(400, 400), (800, 800), (1500, 1500), (2000, 2000)]
+    sizes = [(400, 400), (800, 800), (1000, 1000), (1500, 1500)]
     iter = 10_000_000
+    cmaps = ["magma", "inferno", "plasma", "viridis", "cividis"]
 
     for num in ex:
         
@@ -340,19 +401,21 @@ if __name__ == "__main__":
 
         for size in sizes:
             
-            drawAttractor(
-                num, #903,
-                *attractor_params,
-                dir="renders",
-                width=size[0],
-                height=size[1],
-                maxiterations=iter,
-                end_color=c1,
-                start_color=c2,
-                #background_color=background,
-                interpolation='exp',
-                experiment_name=f"test/{size}"
-            )
+            for cmap in cmaps:
+                drawAttractor(
+                    num, #903,
+                    *attractor_params,
+                    dir="renders",
+                    width=size[0],
+                    height=size[1],
+                    maxiterations=iter,
+                    end_color=c1,
+                    start_color=c2,
+                    #background_color=background,
+                    interpolation='histogram',
+                    experiment_name=f"every/{cmap}/{size}",
+                    cmap=cmap
+                )
 
     # TODO
     #https://www.nathanselikoff.com/training/tutorial-strange-attractors-in-c-and-opengl
