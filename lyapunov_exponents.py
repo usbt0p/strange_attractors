@@ -201,6 +201,24 @@ def drawAttractor(
     density_sigma=2,  # Gaussian smoothing for histogram mode
     cmap='magma'  # Colormap for histogram mode
 ):
+    # Validate x and y ranges
+    if xmax <= xmin or ymax <= ymin:
+        print(f"Invalid ranges for attractor {n}: xmin={xmin}, xmax={xmax}, ymin={ymin}, ymax={ymax}")
+        return
+
+    # Validate x and y values
+    for i in range(len(x)):
+        if math.isnan(x[i]) or math.isnan(y[i]):
+            #print(f"NaN detected in x or y values at index {i} for attractor {n}")
+            # imput value with previous value or 0 if first
+            if i == 0:
+                x[i] = 0
+                y[i] = 0
+            else:
+                x[i] = x[i-1]
+                y[i] = y[i-1]
+            
+
     if interpolation == 'histogram':
         # TODO add transparency option for histogram mode
         # Ensure valid ranges
@@ -305,7 +323,8 @@ def loadAttractor(n, maxiterations=MAXITERATIONS):
     x.append(random.uniform(-0.5, 0.5))
     y.append(random.uniform(-0.5, 0.5))
     for i in range(1, maxiterations):
-        x.append(
+        
+        x_i = (
             a[0]
             + a[1] * x[i - 1]
             + a[2] * x[i - 1] * x[i - 1]
@@ -313,14 +332,40 @@ def loadAttractor(n, maxiterations=MAXITERATIONS):
             + a[4] * y[i - 1]
             + a[5] * y[i - 1] * y[i - 1]
         )
-        y.append(
-            b[0]
+
+        x.append(x_i)
+        
+        
+        y_i = (b[0]
             + b[1] * x[i - 1]
             + b[2] * x[i - 1] * x[i - 1]
             + b[3] * x[i - 1] * y[i - 1]
             + b[4] * y[i - 1]
-            + b[5] * y[i - 1] * y[i - 1]
-        )
+            + b[5] * y[i - 1] * y[i - 1])
+        
+        y.append(y_i)
+
+    # FIXME the problem is here most likely, since the generation works
+    # since chaotic attractors are sensitive to initial conditions
+    # regenerating the x and y values might lead to divergence, which we see since
+    # most of the problematic attractors collapse into a point attractor
+    # a possible solution is to store the initial x and y values in the file, but that
+    # is not how the original code worked, and leads to large files, + you cant add iterations
+
+    #     # check for nan
+    #     n_nans = 0
+    #     if math.isnan(x_i) or math.isnan(y_i):
+    #         #print(f"NaN detected in x at iteration {i} for attractor {n}, imputing with previous value")
+    #         if i == 0:
+    #             x[i] = 0
+    #             y[i] = 0
+    #             print("first value is nan, setting to 0")
+    #         else:
+    #             x[i] = x[i-1]
+    #             y[i] = y[i-1]
+    #             n_nans += 1
+    # print(f"Total NaNs encountered during regeneration: {n_nans}")
+            
 
     return a, b, xmin, xmax, ymin, ymax, x, y
 
@@ -386,36 +431,48 @@ if __name__ == "__main__":
 
     #createAttractor()
 
-    ex = [54, 93, 99, 107, 139, "210_1", 542, 620, 6, 210, "989_1", 511, 836, 107, 224, 292, 756, 903, 814, 298, 383]
+    #ex = [54, 93, 99, 107, 139, "210_1", 542, 620, 6, 210, "989_1", 511, 836, 107, 224, 292, 756, 903, 814, 298, 383]
+    problem_ex = [6, 107, 210, 511, 620]
+    
     #backgrounds = [None, (0,0,0,255), (255,255,255,255)]      
-    sizes = [(400, 400), (800, 800), (1000, 1000), (1500, 1500)]
-    iter = 10_000_000
+    sizes = [(400,400)]#[(400, 400), (800, 800), (1000, 1000), (1500, 1500)]
+    iter = 2_000_000
     cmaps = ["magma", "inferno", "plasma", "viridis", "cividis"]
 
-    for num in ex:
+    for num in problem_ex:
         
         # eat a and b cause we dont need them
         _, _, *attractor_params, = loadAttractor(num, maxiterations=iter)
+
+        # log info about the attractor
+        print(f"Attractor {num}: params={len(attractor_params)}")
+        print(f"len of x and y: {len(attractor_params[-2])}, {len(attractor_params[-1])}")
+        # see mean and other stats of params
+        xmin, xmax, ymin, ymax, x, y = attractor_params
+        # print stats and analytics about params
+        print(f"x: {x[:5]}, y: {y[:5]}")
+        print(f"xmin: {xmin}, xmax: {xmax}, ymin: {ymin}, ymax: {ymax}")
+        print()
         
         c1, c2 = randomComplementaryColors()
 
         for size in sizes:
             
-            for cmap in cmaps:
-                drawAttractor(
-                    num, #903,
-                    *attractor_params,
-                    dir="renders",
-                    width=size[0],
-                    height=size[1],
-                    maxiterations=iter,
-                    end_color=c1,
-                    start_color=c2,
-                    #background_color=background,
-                    interpolation='histogram',
-                    experiment_name=f"every/{cmap}/{size}",
-                    cmap=cmap
-                )
+            
+            drawAttractor(
+                num, #903,
+                *attractor_params,
+                dir="renders",
+                width=size[0],
+                height=size[1],
+                maxiterations=iter,
+                end_color=c1,
+                start_color=c2,
+                #background_color=background,
+                interpolation='histogram',
+                experiment_name=f"problematic",
+                cmap='magma'
+            )
 
     # TODO
     #https://www.nathanselikoff.com/training/tutorial-strange-attractors-in-c-and-opengl
