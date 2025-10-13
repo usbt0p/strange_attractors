@@ -17,3 +17,11 @@ Automatic generation of attractors by using Lyapunov exponents to calculate prom
 - [ ] Make higher dimensional attractors and project them into a smaller space.
 - [ ] Make 3D attractors and plot them in 3D.
 - [ ] Make a video / gif of the points appearing with their respective colour.
+- [ ] add padding to sides of drawings (just blank space at the limits)
+- [ ] add transparency to the histogram mode
+
+## References!
+https://www.nathanselikoff.com/training/tutorial-strange-attractors-in-c-and-opengl
+https://www3.fi.mdp.edu.ar/fc3/SisDin2009/Clase%202/nousado/CHAOSCOPE/help/en/manual/attractors.htm
+http://devmag.org.za/2012/07/29/how-to-choose-colours-procedurally-algorithms/
+https://paulbourke.net/fractals/lyapunov/
