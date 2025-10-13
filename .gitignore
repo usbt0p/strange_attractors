@@ -1,4 +1,9 @@
+.venv
+__pycache__
+*.pyc
+
 *.png
 *.jpg
 *.txt
+!requirements.txt
 *.json
