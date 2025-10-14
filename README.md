@@ -5,16 +5,12 @@ Automatic generation of attractors by using Lyapunov exponents to calculate prom
 
 # Some examples
 
-|  |  |  |
+| | | |
 |-----------|-----------|-----------|
 | <img src="examples/0.png" width="400"/> | <img src="examples/7.png" width="400"/> | <img src="examples/21.png" width="400"/> |
-|  |  |  |
 | <img src="examples/24.png" width="400"/> | <img src="examples/29.png" width="400"/> | <img src="examples/33.png" width="400"/> |
-|  |  |  |
 | <img src="examples/59.png" width="400"/> | <img src="examples/143_0.png" width="400"/> | <img src="examples/75.png" width="400"/> |
-|  |  |  |
 | <img src="examples/79.png" width="400"/> | <img src="examples/100.png" width="400"/> | <img src="examples/125.png" width="400"/> |
-|  |  |  |
 | <img src="examples/135.png" width="400"/> | <img src="examples/136.png" width="400"/> | <img src="examples/147.png" width="400"/> |
 
 ## TODO Some ideas to try 
