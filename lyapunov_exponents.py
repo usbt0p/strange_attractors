@@ -8,6 +8,8 @@ import os
 import json
 import glob
 import logging
+from multiprocessing import Pool, cpu_count
+from concurrent.futures import ProcessPoolExecutor, as_completed
 
 import math
 import random
@@ -21,10 +23,7 @@ from tqdm import tqdm
 from colors import (colorInterpolate, randomComplementaryColors, 
                     randomTriadColors, randomColoursGoldenRatio)
 
-MAXITERATIONS = 100_000
-NEXAMPLES = 10000
-
-def createAttractor(out_path="output"):
+def createAttractor(examples, iterations, out_path="output"):
 
     # by default create output directory and attr_number.txt if not exists
     if not os.path.exists(f"{out_path}/attr_number.txt"):
@@ -36,26 +35,20 @@ def createAttractor(out_path="output"):
     with open(f"{out_path}/attr_number.txt", "r") as f:
         file_index = int(f.read().strip())
 
-    for n in tqdm(range(NEXAMPLES), desc="Generating attractors"):
-        lyapunov = 0
-        xmin = 1e32
-        xmax = -1e32
-        ymin = 1e32
-        ymax = -1e32
-        ax, ay, x, y = [], [], [], []
-
-        # Initialize coefficients for this attractor
-        for i in range(6):
-            ax.append(random.uniform(-2, 2))
-            ay.append(random.uniform(-2, 2))
-
-        # Calculate the attractor
-        drawit = True
+    # TODO turn this for into a while loop that continues until we have generated the desired number of attractors
+    for n in tqdm(range(examples), desc="Generating attractors"):
+        # random coefficients
+        ax = [random.uniform(-2, 2) for _ in range(6)]
+        ay = [random.uniform(-2, 2) for _ in range(6)]
         # This is the initial point, it will serve as the seed for the series
         # Even though the series is chaotic, it is deterministic
-        x.append(random.uniform(-0.5, 0.5))
-        y.append(random.uniform(-0.5, 0.5))
-
+        x = [random.uniform(-0.5, 0.5)]
+        y = [random.uniform(-0.5, 0.5)]
+        # min and max bounds
+        xmin = ymin = 1e32
+        xmax = ymax = -1e32
+        lyapunov = 0.0     
+        
         # calculate the initial separation between two nearby points
         d0 = -1
         while d0 <= 0: # until the points are not identical
@@ -68,7 +61,9 @@ def createAttractor(out_path="output"):
             dy = y[0] - ye
             d0 = math.sqrt(dx * dx + dy * dy)
 
-        for i in range(1, MAXITERATIONS): # start at 1 to avoid using x[-1]
+        drawit = True
+        # Calculate the attractor
+        for i in range(1, iterations): # start at 1 to avoid using x[-1]
             # Calculate next term
 
             x_i = ax[0] + ax[1]*x[i-1] + ax[2]*x[i-1]*x[i-1] + \
@@ -119,11 +114,13 @@ def createAttractor(out_path="output"):
                 logging.info("neutrally stable")
                 drawit = False
             elif lyapunov < 0:
-                print(f"periodic {lyapunov} ")
+                logging.info(f"periodic {lyapunov} ")
                 drawit = False
             else:
-                print(f"chaotic {lyapunov} ")
+                logging.info(f"chaotic {lyapunov} ")
 
+        lyap_payload = {"lyapunov": lyapunov,
+                        "normalized_lyapunov": lyapunov / (iterations - 1000)}
         # Save the image
         if drawit:
             saveAttractor(
@@ -134,7 +131,7 @@ def createAttractor(out_path="output"):
                 xmin, xmax,
                 ymin, ymax,
                 x[0], y[0],
-                lyapunov,
+                lyap_payload,
             )
             drawAttractor(
                 file_index,
@@ -186,7 +183,7 @@ def loadAttractor(pathname):
         parameters = json.load(f)
     return parameters
 
-def generateAttractorFromParameters(params, iters=MAXITERATIONS
+def generateAttractorFromParameters(params, iters
                                 ) -> tuple[list, list, float, float, float, float, int]:
     equation = params.get("equation", None)
     a = params["coefficients"]["a"]
@@ -206,7 +203,7 @@ def generateAttractorFromParameters(params, iters=MAXITERATIONS
         x.append(a[0] + a[1]*x[i-1] + a[2]*x[i-1]*x[i-1] + a[3]*x[i-1]*y[i-1] + a[4]*y[i-1] + a[5]*y[i-1]*y[i-1])
         y.append(b[0] + b[1]*x[i-1] + b[2]*x[i-1]*x[i-1] + b[3]*x[i-1]*y[i-1] + b[4]*y[i-1] + b[5]*y[i-1]*y[i-1])
 
-    return x, y, xmin, xmax, ymin, ymax, iters
+    return x, y, xmin, xmax, ymin, ymax
 
 def drawAttractor(
     name,
@@ -219,11 +216,12 @@ def drawAttractor(
     end_color=(0, 0, 0),
     background_color=None,
     dir="output",
-    maxiterations=MAXITERATIONS,
+    maxiterations=100_000,
     interpolation='exp',
     experiment_name="",
-    density_sigma=2,  # Gaussian smoothing for histogram mode
-    cmap='magma'  # Colormap for histogram mode
+    density_sigma=0,  # Gaussian smoothing for histogram mode
+    cmap='magma',  # Colormap for histogram mode
+    pad_size=0,
 ):
     """Draw the attractor using the provided parameters.
     Current quirks:
@@ -231,6 +229,7 @@ def drawAttractor(
     - if experiment_name is provided, it is used as a subdirectory and prefix for the filename
     - histogram mode ignores start and end colors as well as background color (no transparency), 
         will always use bicubic interpolation, and is limited to matplotlib colormaps
+    - padding only works in histogram mode
     """            
 
     def generateFilename(dir, experiment_name, name, interpolation, 
@@ -255,7 +254,7 @@ def drawAttractor(
         # Create a 2D histogram grid
         H2, _, _ = np.histogram2d(xs, ys, bins=[width, height], range=[[0, 1], [0, 1]])
         if np.sum(H2) == 0:
-            print(f"Empty histogram for attractor {name}")
+            logging.debug(f"Empty histogram for attractor {name}")
             return
 
         density = gaussian_filter(H2, sigma=density_sigma)
@@ -269,7 +268,7 @@ def drawAttractor(
         plt.imshow(
             img_data.T[::-1],
             origin="lower",
-            interpolation="spline16",
+            interpolation="bicubic",
             cmap=cmap,  # Use a perceptually uniform colormap
         )
         plt.axis("off")
@@ -277,9 +276,9 @@ def drawAttractor(
 
         # Save the image
         pth = generateFilename(dir, experiment_name, name, interpolation, width, height, maxiterations)
-        plt.savefig(pth, bbox_inches="tight", pad_inches=0) # TODO aqui
+        plt.savefig(pth, bbox_inches="tight", pad_inches=pad_size, facecolor='black')
         plt.close()
-        print(f"saved attractor to ./{pth}")
+        logging.info(f"saved attractor to ./{pth}")
     
     else:
         if background_color:
@@ -301,33 +300,78 @@ def drawAttractor(
 
         # Save and create dirs, names, etc
         pth = generateFilename(dir, experiment_name, name, interpolation, width, height, maxiterations)
+        # TODO add padding option for non-histogram mode
         img.save(pth, "PNG")
-        print(f"saved attractor to ./{pth}")
+        logging.info(f"saved attractor to ./{pth}")
 
 
-if __name__ == "__main__":
-
-    #createAttractor(out_path="output")
-
-    filenames = glob.glob("output/*.json")
-    for filename in tqdm(filenames, desc="Processing files"):
-        print(f"Processing {filename}")
+def process_single_file(filename, render_iterations, **kwargs):
+    """Worker function to process a single attractor file"""
+    try:
+        logging.info(f"Processing {filename}")
         params = loadAttractor(filename)
-        x, y, xmin, xmax, ymin, ymax, iters = \
-            generateAttractorFromParameters(params, 500_000)
-        print("Correctly loaded parameters.")
+        x, y, xmin, xmax, ymin, ymax = \
+            generateAttractorFromParameters(params, render_iterations)
+        logging.info("Correctly loaded parameters.")
+        
         name = os.path.basename(filename).split('.')[0]
         drawAttractor(
                 name, 
                 xmin, xmax,
                 ymin, ymax,
                 x, y,
-                maxiterations=500_000,
-                width=1500,
-                height=1500,
-                start_color=(0, 0, 0),
-                end_color=(255, 255, 255),
-                background_color=(125, 125, 125),
-                dir="para_github",
-                interpolation="histogram",
-            )   
+                maxiterations=render_iterations,
+                **kwargs
+            )
+        return f"Successfully processed {filename}"
+    except Exception as e:
+        return f"Error processing {filename}: {str(e)}"
+
+
+if __name__ == "__main__":
+
+    CREATE_ITERATIONS = 100_000
+    EXAMPLES = 5_000_000
+    RENDER_ITERATIONS = 20_000_000
+
+    render_kwargs = {
+        "width": 1000,
+        "height": 1000,
+        "cmap": "magma",
+        "dir": "new_attractors/renders",
+        "interpolation": "histogram",
+        "density_sigma": 0,
+        "pad_size": 0
+    }
+    
+    # TODO parallelize this too
+    #createAttractor(out_path="new_attractors/out", examples=EXAMPLES, iterations=CREATE_ITERATIONS)
+
+    filenames = glob.glob("new_attractors/out/*.json")
+
+    # perfect task for multiprocessing! cpu go brr
+    num_processes = cpu_count() - 4  # leave some CPU for other tasks
+    print(f"Processing {len(filenames)} files using {num_processes} processes...")
+    
+    try:
+        batch_size = 100
+        for i in range(0, len(filenames), batch_size):
+            batch = filenames[i:i + batch_size]
+            with Pool(processes=num_processes) as pool:
+                # Use imap for progress tracking
+                results = list(tqdm(
+                    # TODO change imap for map since its much faster, set smaller batch sizes
+                    # and just use tqdm on the outer for loop 
+                    pool.imap(process_single_file, batch, RENDER_ITERATIONS, render_kwargs),
+                    total=len(batch),
+                    desc="Processing files"
+                ))
+            # results summary
+            successful = sum(1 for r in results if r.startswith("Successfully"))
+            failed = len(results) - successful
+            print(f"Batch {i//batch_size + 1}: {successful} successful, {failed} failed")
+    
+    except KeyboardInterrupt: # allow graceful exit on Ctrl+C
+        print("Process interrupted by user. Exiting...")    
+
+    print(f"Processing complete: {successful} successful, {failed} failed")
