@@ -16,11 +16,12 @@ import numpy as np
 
 from PIL import Image, ImageDraw, ImageFilter
 from scipy.ndimage import gaussian_filter
+from tqdm import tqdm
 
 from colors import (colorInterpolate, randomComplementaryColors, 
                     randomTriadColors, randomColoursGoldenRatio)
 
-MAXITERATIONS = 500_000
+MAXITERATIONS = 100_000
 NEXAMPLES = 10000
 
 def createAttractor(out_path="output"):
@@ -35,7 +36,7 @@ def createAttractor(out_path="output"):
     with open(f"{out_path}/attr_number.txt", "r") as f:
         file_index = int(f.read().strip())
 
-    for n in range(NEXAMPLES):
+    for n in tqdm(range(NEXAMPLES), desc="Generating attractors"):
         lyapunov = 0
         xmin = 1e32
         xmax = -1e32
@@ -129,24 +130,17 @@ def createAttractor(out_path="output"):
                 file_index,
                 out_path,
                 None,
-                ax,
-                ay,
-                xmin,
-                xmax,
-                ymin,
-                ymax,
-                x[0],
-                y[0],
+                ax, ay,
+                xmin, xmax,
+                ymin, ymax,
+                x[0], y[0],
                 lyapunov,
             )
             drawAttractor(
                 file_index,
-                xmin,
-                xmax,
-                ymin,
-                ymax,
-                x,
-                y,
+                xmin, xmax,
+                ymin, ymax,
+                x, y,
                 width=500,
                 height=500,
                 dir=out_path,
@@ -180,7 +174,11 @@ def saveAttractor(name, path, equation, a, b, xmin, xmax, ymin, ymax, x_o, y_o, 
         "lyapunov": lyapunov
     }
 
-    with open(f"{path}/{name}.json", "w") as f:
+    suffix = 0
+    while os.path.exists(os.path.join(
+        path, newname := f"{name}{"_" if name else ""}{suffix}.json")):
+        suffix += 1
+    with open(os.path.join(path, newname + ".json"), "w") as f:
         json.dump(parameters, f, indent=4)
 
 def loadAttractor(pathname):
@@ -309,9 +307,10 @@ def drawAttractor(
 
 if __name__ == "__main__":
 
-    #createAttractor(out_path="test_merge")
+    #createAttractor(out_path="output")
 
-    for filename in glob.glob("test_merge/*.json"):
+    filenames = glob.glob("output/*.json")
+    for filename in tqdm(filenames, desc="Processing files"):
         print(f"Processing {filename}")
         params = loadAttractor(filename)
         x, y, xmin, xmax, ymin, ymax, iters = \
@@ -323,12 +322,12 @@ if __name__ == "__main__":
                 xmin, xmax,
                 ymin, ymax,
                 x, y,
-                maxiterations=iters,
+                maxiterations=500_000,
                 width=1500,
                 height=1500,
                 start_color=(0, 0, 0),
                 end_color=(255, 255, 255),
                 background_color=(125, 125, 125),
-                dir="test_final",
-                interpolation="exp",
-            )
+                dir="para_github",
+                interpolation="histogram",
+            )   
