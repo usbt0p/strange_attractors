@@ -2,6 +2,10 @@
 
 import math
 import random
+import numpy as np
+import matplotlib as mpl
+import matplotlib.pyplot as plt
+import matplotlib.colors as mcolors
 
 def colorInterpolate(color1, color2, t, mode='linear') -> tuple[int, int, int]:
     """Interpolate between two colors.
@@ -87,3 +91,78 @@ def randomColoursGoldenRatio(lbound=0, ubound=255):
     golden_b = lbound + int(((b - lbound) * phi) % span)
 
     return (r, g, b), (golden_r, golden_g, golden_b)
+
+def recolor_colormap_base(cmap, n=1, color=(0, 0, 0), resample_size=256) -> mcolors.ListedColormap:
+    """
+    Modify the first `n` entries of a colormap to a specific RGB color.
+    Replacing the first `n` colors is useful to set the background color of an attractor.
+    """
+    if isinstance(cmap, str):
+        cmap = mpl.colormaps[cmap]
+
+    # Convert color to 0-1 range if necessary
+    if max(color) > 1:
+        color = tuple(c / 255 for c in color)
+    color = np.array((*color, 1.0))  # asegurar canal alfa
+
+    # Resample the colormap to a certain number of colors
+    newcolors = cmap(np.linspace(0, 1, resample_size))
+    newcolors[:n, :] = color
+    return mcolors.ListedColormap(newcolors)
+
+def create_linear_colormap(colors=None, positions=None, name='custom_cmap', preset=None, 
+                           recolor_base=None) -> mcolors.LinearSegmentedColormap:
+    """
+    Create a custom linear colormap or use a preset colormap from matplotlib.
+    The positions must sum up to 1.0 and allow to define where each color is placed in the gradient.
+    This is useful to create smooth color gradients for rendering attractors using plt.imshow.
+
+    https://matplotlib.org/stable/users/explain/colors/colormap-manipulation.html#creating-listed-colormaps
+    """
+    # ensure colors are rgb in 0-255 and then convert to 0-1
+    if preset:
+        if recolor_base:
+            return recolor_colormap_base(plt.get_cmap(preset), **recolor_base)
+        else:
+            return plt.get_cmap(preset)
+    
+    if colors is None and preset is None: # default colormap
+        if recolor_base:
+            return recolor_colormap_base(plt.get_cmap('magma'), **recolor_base)
+        else:
+            return plt.get_cmap('magma')  
+    
+    if colors:
+        assert all(isinstance(c, tuple) and len(c) == 3 for c in colors), "Colors must be tuples of (R, G, B)"
+        colors = [(r/255, g/255, b/255) for r, g, b in colors]
+
+    # If positions are not provided, distribute them evenly
+    n = len(colors)
+    if positions is None:
+        positions = [i / (n - 1) for i in range(n)]
+
+    if len(colors) != len(positions):
+        raise ValueError("Colors and positions must have the same length")
+    
+    finalcmap = mcolors.LinearSegmentedColormap.from_list(name, list(zip(positions, colors)))
+    if recolor_base:
+        finalcmap = recolor_colormap_base(finalcmap, **recolor_base)
+    return finalcmap
+
+
+if __name__ == "__main__":
+    # test the create_linear_colormap function
+    
+    gradient = np.linspace(0, 1, 256)
+    gradient = np.vstack((gradient, gradient))
+    
+    # you wont see it but the first color is black by default
+    cmap = create_linear_colormap(colors=[(255, 0, 0), (0, 255, 0)])
+    plt.imshow(gradient, aspect='auto', cmap=cmap)
+    plt.axis('off')
+    plt.savefig("test_colormap.png", bbox_inches='tight', pad_inches=0)
+
+    cmap2 = create_linear_colormap(preset='viridis', recolor_base={'n':10, 'color':(0,0,0)})
+    plt.imshow(gradient, aspect='auto', cmap=cmap2)
+    plt.axis('off')
+    plt.savefig("test_colormap2.png", bbox_inches='tight', pad_inches=0)

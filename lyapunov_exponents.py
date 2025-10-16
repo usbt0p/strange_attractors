@@ -326,6 +326,7 @@ def drawAttractor(
 
 if __name__ == "__main__":
     from parallel import draw_attractors_in_parallel
+    from colors import create_linear_colormap
 
     CREATE_ITERATIONS = 100_000
     EXAMPLES = 5_000_000 # only a small fraction will be drawn as most are not chaotic
@@ -334,7 +335,7 @@ if __name__ == "__main__":
     render_kwargs = {
         "width": 1000,
         "height": 1000,
-        "cmap": "magma",
+        "cmap": create_linear_colormap(preset='viridis', recolor_base={'n':1, 'color':(0,0,0)}), #"magma",
         "dir": "new_attractors/render_test",
         "interpolation": "histogram",
         "density_sigma": 0,
