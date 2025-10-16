@@ -41,12 +41,12 @@ def draw_attractors_in_parallel(filenames, render_iterations, n_processes=cpu_co
     
     logging.info(f"Processing {len(filenames)} files using {n_processes} processes...")
     
-    print(kwargs)
-
     try:
         batch_size = 100
         for i in range(0, len(filenames), batch_size):
+            print(f"Batch 1: processing files {i+1} to {min(i + batch_size, len(filenames))}...")
             batch = filenames[i:i + batch_size]
+
             with Pool(processes=n_processes) as pool:
                 # Use partial because the worker function needs extra positional args bersides keyword args
                 worker_func = partial(draw_single_attractor, render_iterations=render_iterations, **kwargs)
@@ -56,12 +56,12 @@ def draw_attractors_in_parallel(filenames, render_iterations, n_processes=cpu_co
                     # and just use tqdm on the outer for loop 
                     pool.imap(worker_func, batch),
                     total=len(batch),
-                    desc="Processing files"
+                    desc="Rendering..."
                 ))
             # results summary
             successful = sum(1 for r in results if r.startswith("Successfully"))
             failed = len(results) - successful
-            print(f"Batch {i//batch_size + 1}: {successful} successful, {failed} failed")
+            print(f"\tBatch {i//batch_size + 1}: {successful} successful, {failed} failed")
     
     except KeyboardInterrupt: # allow graceful exit on Ctrl+C
         print("Process interrupted by user. Exiting...") 
