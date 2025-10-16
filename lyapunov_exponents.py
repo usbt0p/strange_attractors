@@ -324,73 +324,32 @@ def drawAttractor(
         logging.info(f"saved attractor to ./{pth}")
 
 
-def process_single_file(filename, render_iterations, **kwargs):
-    """Worker function to process a single attractor file"""
-    try:
-        logging.info(f"Processing {filename}")
-        params = loadAttractor(filename)
-        x, y, xmin, xmax, ymin, ymax = \
-            generateAttractorFromParameters(params, render_iterations)
-        logging.info("Correctly loaded parameters.")
-        
-        name = os.path.basename(filename).split('.')[0]
-        drawAttractor(
-                name, 
-                xmin, xmax,
-                ymin, ymax,
-                x, y,
-                maxiterations=render_iterations,
-                **kwargs
-            )
-        return f"Successfully processed {filename}"
-    except Exception as e:
-        return f"Error processing {filename}: {str(e)}"
-
-
 if __name__ == "__main__":
+    from parallel import draw_attractors_in_parallel
 
     CREATE_ITERATIONS = 100_000
-    EXAMPLES = 5_000_000
-    RENDER_ITERATIONS = 20_000_000
+    EXAMPLES = 5_000_000 # only a small fraction will be drawn as most are not chaotic
+    RENDER_ITERATIONS = 20_000_000 # long processing but good rendering
 
     render_kwargs = {
         "width": 1000,
         "height": 1000,
         "cmap": "magma",
-        "dir": "new_attractors/renders",
+        "dir": "new_attractors/render_test",
         "interpolation": "histogram",
         "density_sigma": 0,
-        "pad_size": 0
+        "pad_size": 0.5
     }
     
     # TODO parallelize this too
     #createAttractor(out_path="new_attractors/out", examples=EXAMPLES, iterations=CREATE_ITERATIONS)
 
-    filenames = glob.glob("new_attractors/out/*.json")
+    # rendering multiple attracctor is a perfect task for multiprocessing! cpu go brr
+    results = draw_attractors_in_parallel(
+        glob.glob("new_attractors/test/*.json"), 
+        RENDER_ITERATIONS, 
+        n_processes=cpu_count() - 4, # leave some CPU for other tasks
+        batch_size=100,
+        **render_kwargs
+    )
 
-    # perfect task for multiprocessing! cpu go brr
-    num_processes = cpu_count() - 4  # leave some CPU for other tasks
-    print(f"Processing {len(filenames)} files using {num_processes} processes...")
-    
-    try:
-        batch_size = 100
-        for i in range(0, len(filenames), batch_size):
-            batch = filenames[i:i + batch_size]
-            with Pool(processes=num_processes) as pool:
-                # Use imap for progress tracking
-                results = list(tqdm(
-                    # TODO change imap for map since its much faster, set smaller batch sizes
-                    # and just use tqdm on the outer for loop 
-                    pool.imap(process_single_file, batch, RENDER_ITERATIONS, render_kwargs),
-                    total=len(batch),
-                    desc="Processing files"
-                ))
-            # results summary
-            successful = sum(1 for r in results if r.startswith("Successfully"))
-            failed = len(results) - successful
-            print(f"Batch {i//batch_size + 1}: {successful} successful, {failed} failed")
-    
-    except KeyboardInterrupt: # allow graceful exit on Ctrl+C
-        print("Process interrupted by user. Exiting...")    
-
-    print(f"Processing complete: {successful} successful, {failed} failed")
