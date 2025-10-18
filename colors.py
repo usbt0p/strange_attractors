@@ -45,7 +45,7 @@ def randomComplementaryColors(lbound=0, ubound=255):
 
     return (r, g, b), (comp_r, comp_g, comp_b)
     
-def randomTriadColors(lbound=0, ubound=255, three_colors=False):
+def randomTriadColors(lbound=0, ubound=255, three_colors=True):
     '''Options allow to return either three or two triadic colors.'''
     r = random.randint(lbound, ubound)
     g = random.randint(lbound, ubound)
@@ -115,8 +115,11 @@ def recolor_colormap_base(cmap, n=1, color=(0, 0, 0), resample_size=256) -> mcol
     newcolors[:n, :] = color
     return mcolors.ListedColormap(newcolors)
 
-def create_linear_colormap(colors=None, positions=None, name='custom_cmap', preset=None, 
-                           recolor_base=None) -> mcolors.LinearSegmentedColormap:
+def create_linear_colormap(colors: list[tuple]=None, 
+                           positions: list[float]=None, 
+                           name='custom_cmap', preset: str=None, 
+                           recolor_base : dict ={'n':1, 'color':(0,0,0)}
+                           ) -> mcolors.LinearSegmentedColormap:
     """
     Create a custom linear colormap or use a preset colormap from matplotlib.
     The positions must sum up to 1.0 and allow to define where each color is placed in the gradient.

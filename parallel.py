@@ -9,7 +9,8 @@ from lyapunov_exponents import loadAttractor, generateAttractorFromParameters, d
 def draw_single_attractor(filename, render_iterations=None, **kwargs):
     """Worker function to render a single attractor file
     from its parameters.
-    This is designed to be used with multiprocessing."""
+    This is designed to be as a worker function for multiprocessing, or
+    can be used standalone."""
     
     if render_iterations is None:
         raise ValueError("render_iterations must be specified")
@@ -30,9 +31,11 @@ def draw_single_attractor(filename, render_iterations=None, **kwargs):
                 maxiterations=render_iterations,
                 **kwargs
             )
+        logging.info(f"Finished rendering {filename}")
         return f"Successfully processed {filename}"
     except Exception as e:
-        return f"Error processing {filename}: {str(e)}"
+        logging.error(f"Error processing {filename}: {str(e)}")
+        raise e
     
 def draw_attractors_in_parallel(filenames, render_iterations, n_processes=cpu_count()-2, batch_size=100, **kwargs):
     """Render multiple attractor files in parallel using multiprocessing.
