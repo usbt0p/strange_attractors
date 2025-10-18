@@ -1,8 +1,3 @@
-# Python port of Paul Bourke's lyapunov/gen.c
-# By Johan Bichel Lindegaard - http://johan.cc
-
-# found at https://paulbourke.net/fractals/lyapunov/
-
 import argparse
 import os
 import json
@@ -27,6 +22,7 @@ def createAttractor(examples, iterations, out_path="output"):
     '''Generate strange attractors using random coefficients and save them as images and JSON files.
     If you want more insights into the algorithm: 
     https://pmc.ncbi.nlm.nih.gov/articles/PMC7512692/#sec3-entropy-20-00175
+    https://paulbourke.net/fractals/lyapunov/
     '''
 
     # by default create output directory and attr_number.txt if not exists
@@ -73,17 +69,17 @@ def createAttractor(examples, iterations, out_path="output"):
         for i in range(1, iterations): # start at 1 to avoid using x[-1]
             # Calculate next term
 
-            x_i = ax[0] + ax[1]*x[i-1] + ax[2]*x[i-1]*x[i-1] + \
-                    ax[3]*x[i-1]*y[i-1] + ax[4]*y[i-1] + ax[5]*y[i-1]*y[i-1]
-            y_i = ay[0] + ay[1]*x[i-1] + ay[2]*x[i-1]*x[i-1] + \
-                    ay[3]*x[i-1]*y[i-1] + ay[4]*y[i-1] + ay[5]*y[i-1]*y[i-1]
+            x_i = ax[0] + ax[1]*x[i-1] + ax[2]*x[i-1]**2 + \
+                    ax[3]*x[i-1]*y[i-1] + ax[4]*y[i-1] + ax[5]*y[i-1]**2
+            y_i = ay[0] + ay[1]*x[i-1] + ay[2]*x[i-1]**2 + \
+                    ay[3]*x[i-1]*y[i-1] + ay[4]*y[i-1] + ay[5]*y[i-1]**2
 
             x.append(x_i)
             y.append(y_i)
             # this represents a nearby point, but slightly separated, on another orbit
             # we'll use this to calculate the lyapunov exponent
-            xenew = ax[0] + ax[1]*xe + ax[2]*xe*xe + ax[3]*xe*ye + ax[4]*ye + ax[5]*ye*ye
-            yenew = ay[0] + ay[1]*xe + ay[2]*xe*xe + ay[3]*xe*ye + ay[4]*ye + ay[5]*ye*ye
+            xenew = ax[0] + ax[1]*xe + ax[2]*xe**2 + ax[3]*xe*ye + ax[4]*ye + ax[5]*ye**2
+            yenew = ay[0] + ay[1]*xe + ay[2]*xe**2 + ay[3]*xe*ye + ay[4]*ye + ay[5]*ye**2
 
             # Update the bounds
             xmin = min(xmin, x[i])
@@ -219,8 +215,8 @@ def generateAttractorFromParameters(params, iters
     y.append(y0)
 
     for i in range(1, iters):
-        x.append(a[0] + a[1]*x[i-1] + a[2]*x[i-1]*x[i-1] + a[3]*x[i-1]*y[i-1] + a[4]*y[i-1] + a[5]*y[i-1]*y[i-1])
-        y.append(b[0] + b[1]*x[i-1] + b[2]*x[i-1]*x[i-1] + b[3]*x[i-1]*y[i-1] + b[4]*y[i-1] + b[5]*y[i-1]*y[i-1])
+        x.append(a[0] + a[1]*x[i-1] + a[2]*x[i-1]**2 + a[3]*x[i-1]*y[i-1] + a[4]*y[i-1] + a[5]*y[i-1]**2)
+        y.append(b[0] + b[1]*x[i-1] + b[2]*x[i-1]**2 + b[3]*x[i-1]*y[i-1] + b[4]*y[i-1] + b[5]*y[i-1]**2)
 
     return x, y, xmin, xmax, ymin, ymax
 
