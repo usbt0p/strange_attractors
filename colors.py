@@ -9,22 +9,15 @@ import matplotlib.colors as mcolors
 
 def colorInterpolate(color1, color2, t, mode='linear') -> tuple[int, int, int]:
     """Interpolate between two colors.
-    Usually the best interpolation mode is exponential, since:
-    - Attractors tend to concentrate points in some areas, leaving other areas sparse. This means that
-        initial non-dense areas will be coloured heavily with the first colors, and dense areas will be coloured
-        heavily with the last colors.
-        
-    - Human vision is logarithmic in nature, so exponential interpolation often looks more natural.
-    color1, color2: tuples of (R, G, B) with values from 0 to 255
-    t: float from 0.0 to 1.0 indicating interpolation factor
+    Usually the best interpolation mode is exponential, since human vision is logarithmic.
+    This interpolation mode however is worse than the one used in the histogram coloring, and is not used there.
     mode: interpolation mode, one of 'linear', 'log', 'exp', 'cos', 'bicubic'
     """
-
     match mode:
         case 'lin': pass  # t is already linear
-        case 'log': t = math.log(t * (math.e - 1) + 1)  # log scale
-        case 'exp': t = (math.exp(t) - 1) / (math.e - 1)  # exponential scale
-        case 'cos': t = (1 - math.cos(math.pi * t)) / 2  # cosine scale
+        case 'log': t = math.log(t * (math.e - 1) + 1)  
+        case 'exp': t = (math.exp(t) - 1) / (math.e - 1)
+        case 'cos': t = (1 - math.cos(math.pi * t)) / 2 
         case 'bicubic': t = t * t * (3 - 2 * t)  # smoothstep
         case _: pass  # default to linear if unknown mode
 
@@ -52,8 +45,8 @@ def randomComplementaryColors(lbound=0, ubound=255):
 
     return (r, g, b), (comp_r, comp_g, comp_b)
     
-def randomTriadColors(lbound=0, ubound=255):
-    # Generate a random base color within bounds
+def randomTriadColors(lbound=0, ubound=255, three_colors=False):
+    '''Options allow to return either three or two triadic colors.'''
     r = random.randint(lbound, ubound)
     g = random.randint(lbound, ubound)
     b = random.randint(lbound, ubound)
@@ -68,6 +61,8 @@ def randomTriadColors(lbound=0, ubound=255):
     triad2_g = lbound + ((g - lbound + 2 * span // 3) % span)
     triad2_b = lbound + ((b - lbound + 2 * span // 3) % span)
 
+    if three_colors:
+        return (r, g, b), (triad1_r, triad1_g, triad1_b), (triad2_r, triad2_g, triad2_b)
     # coin toss for the second color
     if random.random() < 0.5:
         triad = (triad1_r, triad1_g, triad1_b)
@@ -76,21 +71,31 @@ def randomTriadColors(lbound=0, ubound=255):
 
     return (r, g, b), triad
 
-def randomColoursGoldenRatio(lbound=0, ubound=255):
+def randomColoursGoldenRatio(lbound=0, ubound=255, n=2):
+    """Generate n colors based on the golden ratio to ensure good distribution.
+    Returns a list of n colors as (R, G, B) tuples.
+    """
+    assert n >= 2, "n must be at least 2"
+
     # Generate a random base color within bounds
     r = random.randint(lbound, ubound)
     g = random.randint(lbound, ubound)
     b = random.randint(lbound, ubound)
 
-    # Calculate a second color using the golden ratio
     phi = (1 + 5 ** 0.5) / 2  # Golden ratio
     span = ubound - lbound + 1
 
-    golden_r = lbound + int(((r - lbound) * phi) % span)
-    golden_g = lbound + int(((g - lbound) * phi) % span)
-    golden_b = lbound + int(((b - lbound) * phi) % span)
+    colors = [(r, g, b)]
+    for _ in range(n - 1):
+        # Calculate next color using golden ratio, mod makes sure we stay within bounds
+        golden_r = lbound + int(((r - lbound) * phi) % span)
+        golden_g = lbound + int(((g - lbound) * phi) % span)
+        golden_b = lbound + int(((b - lbound) * phi) % span)
+        
+        colors.append((golden_r, golden_g, golden_b))
+        r, g, b = golden_r, golden_g, golden_b
 
-    return (r, g, b), (golden_r, golden_g, golden_b)
+    return colors
 
 def recolor_colormap_base(cmap, n=1, color=(0, 0, 0), resample_size=256) -> mcolors.ListedColormap:
     """

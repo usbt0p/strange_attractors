@@ -42,7 +42,6 @@ def draw_attractors_in_parallel(filenames, render_iterations, n_processes=cpu_co
     logging.info(f"Processing {len(filenames)} files using {n_processes} processes...")
     
     try:
-        batch_size = 100
         for i in range(0, len(filenames), batch_size):
             print(f"Batch 1: processing files {i+1} to {min(i + batch_size, len(filenames))}...")
             batch = filenames[i:i + batch_size]
