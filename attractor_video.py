@@ -33,7 +33,6 @@ def videoAttractor(
     background_color=None,
     dir="output",
     experiment_name="",
-    use_density=True,
     cmap='magma',  # Colormap for histogram mode
     pad_size=0,
     video_duration=10.0,  # Duration in seconds
@@ -61,7 +60,7 @@ def videoAttractor(
     ys = np.clip(ys, 0, video_height - 1)
     
     # # Get colormap colors
-    # colormap = plt.colormaps[cmap]
+    colormap = plt.colormaps[cmap]
     
     # Generate video filename
     pth = generateFilename(dir, experiment_name, name, "hist", video_width, video_height, "", "mp4")
@@ -70,71 +69,51 @@ def videoAttractor(
     fourcc = cv2.VideoWriter_fourcc(*'mp4v')
     out = cv2.VideoWriter(pth, fourcc, fps, (video_width, video_height))
     
-    # # Set background color
-    # if background_color:
-    #     bg_color = background_color
-    # else:
-    #     bg_color = tuple(int(c * 255) for c in colormap(0.0)[:3])
+    # Set background color
+    if background_color:
+        assert len(background_color) == 3 and \
+            all(0 <= c <= 255 for c in background_color), "Invalid background color"
+        bg_color = background_color
+    else:
+        bg_color = tuple(int(c * 255) for c in colormap(0.0)[:3])
     
-    # Track point density for coloring
-    # density_map = np.zeros((video_height, video_width), dtype=np.float32)
-    # # Track which pixels have been visited
-    # visited_pixels = set()
+    # we'll track point density for coloring
+    density_map = np.zeros((video_height, video_width), dtype=np.float32)
 
-    bg_color = (255, 255, 255)  # White background in BGR
-
-    # Create fresh frame with background
-    frame = np.full((video_height, video_width, 3), bg_color, dtype=np.uint8)
-    
     for frame_idx in tqdm(range(total_frames), desc="Generating video frames"):
-        
-        # Calculate which points to add this frame
+        # clear frame
+        frame = np.full((video_height, video_width, 3), bg_color, dtype=np.uint8)
+
+        # new indexes of points
         start_idx = frame_idx * points_per_frame
         end_idx = min(start_idx + points_per_frame, total_points)
         
-        # Add new points to density map
-        # for i in range(start_idx, end_idx):
-        #     x_coord, y_coord = xs[i], ys[i]
-        #     density_map[y_coord, x_coord] += 1
-        #     visited_pixels.add((x_coord, y_coord))
+        # use np.add.at to prevent loops
+        curr_xs = xs[start_idx:end_idx]
+        curr_ys = ys[start_idx:end_idx]
+        np.add.at(density_map, (curr_ys, curr_xs), 1)
         
-        # Redraw all visited pixels with updated colors
-        # if len(visited_pixels) > 0:
-        #     max_density = np.max(density_map)
+        if np.max(density_map) > 0:
+            # apply log density and normalize
+            log_density = np.log1p(density_map)
+            max_log = np.max(log_density)
+            norm_density = log_density / max_log
             
-        #     for x_coord, y_coord in visited_pixels:
-        #         density_value = density_map[y_coord, x_coord]
-                
-        #         # Get color based on density or iteration
-        #         if use_density:
-        #             # Use density for coloring
-        #             color_value = min(density_value / max_density, 1.0) if max_density > 0 else 0
-        #         else:
-        #             # For non-density mode, use the last iteration that hit this pixel
-        #             # Find the last occurrence of this coordinate
-        #             last_occurrence = 0
-        #             for i in range(end_idx - 1, -1, -1):
-        #                 if xs[i] == x_coord and ys[i] == y_coord:
-        #                     last_occurrence = i
-        #                     break
-        #             color_value = last_occurrence / total_points
-                
-        #         # Get RGB color from colormap
-        #         rgb = colormap(color_value)[:3]
-        #         bgr_color = tuple(int(c * 255) for c in rgb[::-1])  # Convert RGB to BGR for OpenCV
+            # opencv color format
+            colored_map = colormap(norm_density)[:, :, :3] 
+            colored_map = (colored_map * 255).astype(np.uint8)
+            colored_map = cv2.cvtColor(colored_map, cv2.COLOR_RGB2BGR)
             
-        for i in range(start_idx, end_idx):
-            cv2.circle(frame, (xs[i], ys[i]), 
-                       0, (0, 0, 0), -1)  # Draw in black
-        
-        # Write frame to video
+            # mask the only drawn pixels
+            mask = density_map > 0
+            frame[mask] = colored_map[mask]
+
         out.write(frame)
-    
-    # Release video writer
+
     out.release()
     logging.info(f"saved attractor video to ./{pth}")
 
-def computePoints(
+def computeDensity(
     xmin, xmax,
     ymin, ymax,
     x, y,
@@ -142,6 +121,8 @@ def computePoints(
     height=800,
     density_sigma=0,  # Gaussian smoothing for histogram mode
 ):
+    """Compute the density histogram of the attractor points.
+    """
      
     # Normalize points to [0, 1] range
     xs = (np.array(x) - xmin) / (xmax - xmin)
@@ -155,21 +136,20 @@ def computePoints(
 
     density = H2
     if density_sigma > 0: density = gaussian_filter(H2, sigma=density_sigma)
-    density[density < 1e-10] = 1e-10 # Avoid zero values before log transform
-    img_data = np.log1p(density) # Apply log transform for better dynamic range
-    img_data = (img_data - np.min(img_data)) / ( # normalize again to [0, 1]
-        np.max(img_data) - np.min(img_data))
-
+    density[density < 1e-10] = 1e-10 # Avoid zero values 
+    img_data = np.log1p(density) # log transform for better dynamic range
+    # normalize again to [0, 1]
+    img_data = (img_data - np.min(img_data)) / (np.max(img_data) - np.min(img_data)) 
+        
     return img_data.T[::-1]
 
 if __name__ == "__main__":
-
 
     from lyapunov_exponents import loadAttractor, generateAttractorFromParameters
     
     RENDER_ITERATIONS = 10_000_000
 
-    attractors = [15, 21] #, 22, 25, 29, 34]
+    attractors = [15, 21, 22, 25, 29, 34]
 
     for n in attractors:
         print(f"Processing attractor {n}...")
@@ -185,13 +165,12 @@ if __name__ == "__main__":
             xmin, xmax,
             ymin, ymax,
             x, y,
-            video_duration=7.0,
-            fps=10,
+            video_duration=10.0,
+            fps=20,
             video_width=1000,
             video_height=1000,
             pad_size=20,
             dir="set_num",
-            use_density=True,
             cmap='magma'
         )
 
