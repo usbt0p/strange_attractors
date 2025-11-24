@@ -127,6 +127,7 @@ results = draw_attractors_in_parallel(
 
 ## TODO Some ideas to try 
 - [ ] separate plotting and point generation in the drawing code.
+- [ ] refactor the generateFilename function to be used by all
 
 - [ ] Add symbolic equations and save them as parameters. That way, automatic equation generation will be a possibility (with arbitrary params).
 - [x] Test the correct loading with seed points: all attractors should work when loaded.
