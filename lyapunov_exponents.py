@@ -343,7 +343,7 @@ def drawAttractor(
     experiment_name="",
     density_sigma=0,  # Gaussian smoothing for histogram mode
     cmap='magma',  # Colormap for histogram mode
-    pad_size=0,
+    pad_size=20,
 ):
     """Create an image of the attractor using the provided parameters.
     Interplation is the function used to assign colors to points. The current best option

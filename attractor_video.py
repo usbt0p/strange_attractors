@@ -9,12 +9,12 @@ import cv2
 from tqdm import tqdm
 
 
-def generateFilename(dir, experiment_name, name, interpolation, 
+def generateFilename(dir, experiment_name, name, 
                          width, height, maxiterations, extension="png"):
         if not os.path.exists(dirpath := os.path.join(dir, experiment_name)):
             os.makedirs(dirpath) # ignoring experiment_name if empty is intentional
         if experiment_name:
-            name = f"{name}_{interpolation}_{width}x{height}_{maxiterations}"
+            name = f"{name}_{width}x{height}_{maxiterations}"
         # check if file exists and if so find a new name
         suffix = 0
         while os.path.exists(os.path.join(
@@ -32,12 +32,13 @@ def videoAttractor(
     video_height=1080,  # Video resolution height
     background_color=None,
     dir="output",
-    experiment_name="",
+    experiment_name="", # throw all videos in a subfolder 
     cmap='magma',  # Colormap for histogram mode
     color_bias = 0.2, # limit of color release at start of video
-    pad_size=0,
+    pad_size=20,
     video_duration=10.0,  # Duration in seconds
     fps=30,  # Frames per second
+    video_end_pad=0.0, # seconds of padding at the end
 ):
     """Create a video of an attractor being drawn point by point.
     """            
@@ -64,7 +65,7 @@ def videoAttractor(
     colormap = plt.colormaps[cmap]
     
     # Generate video filename
-    pth = generateFilename(dir, experiment_name, name, "hist", video_width, video_height, "", "mp4")
+    pth = generateFilename(dir, experiment_name, name, video_width, video_height, "", "mp4")
     
     # Initialize video writer
     fourcc = cv2.VideoWriter_fourcc(*'mp4v')
@@ -114,6 +115,10 @@ def videoAttractor(
 
         out.write(frame)
 
+    if video_end_pad > 0.0:
+        for _ in range(int(video_end_pad * fps)):
+            out.write(frame)
+
     out.release()
     logging.info(f"saved attractor video to ./{pth}")
 
@@ -121,10 +126,15 @@ if __name__ == "__main__":
 
     from lyapunov_exponents import loadAttractor, generateAttractorFromParameters
     
-    RENDER_ITERATIONS = 100_000_000
+    RENDER_ITERATIONS = 200_000_000
 
-    attractors = [15, 21, 22] #, 25, 29, 34]
-
+    attractors = [15, 21, 1, 25, 13, 34]
+    colors = ['viridis', 'afmhot', "binary", "gray", "twilight",
+              "turbo", "BuPu", "YlGn", "YlOrRd", "Blues", "Reds", "Greens",
+              "seismic", "Accent"]
+    
+    params = loadAttractor(f"/home/usbt0p/Programs/strange_attractors/set_num/out/15_0.json")
+        
     for n in attractors:
         print(f"Processing attractor {n}...")
 
@@ -134,20 +144,23 @@ if __name__ == "__main__":
         
         print(f"Attractor {n} loaded and generated.")
 
-        videoAttractor(
-            f"density_{n}",
-            xmin, xmax,
-            ymin, ymax,
-            x, y,
-            video_duration=12.0,
-            fps=14,
-            video_width=800,
-            video_height=800,
-            color_bias=0.25,
-            pad_size=20,
-            dir="set_num",
-            cmap='magma'
-        )
+        for color in colors:
+            videoAttractor(
+                f"{n}_{color}",
+                xmin, xmax,
+                ymin, ymax,
+                x, y,
+                video_duration=10.0,
+                fps=14,
+                video_width=800,
+                video_height=800,
+                color_bias=0.25,
+                pad_size=20,
+                dir="videos",
+                cmap=color,
+                video_end_pad=2.0,
+                experiment_name=f"_"
+            )
 
         print(f"Attractor {n} video generated.")
         print()
