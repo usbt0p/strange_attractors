@@ -170,6 +170,18 @@ if __name__ == "__main__":
     plt.axis('off')
     plt.savefig("test_colormap.png", bbox_inches='tight', pad_inches=0)
 
+    # now skew the colormap with positions
+    cmap = create_linear_colormap(colors=[(0,0,0), (2, 24, 107), (255, 145, 0)])
+    plt.imshow(gradient, aspect='auto', cmap=cmap)
+    plt.axis('off')
+    plt.savefig("test_colormap_positions_1.png", bbox_inches='tight', pad_inches=0)
+
+    positions = [0.0, 0.2, 1.0]
+    cmap = create_linear_colormap(colors=[(0,0,0), (2, 24, 107), (255, 145, 0)], positions=positions)
+    plt.imshow(gradient, aspect='auto', cmap=cmap)
+    plt.axis('off')
+    plt.savefig("test_colormap_positions_2.png", bbox_inches='tight', pad_inches=0)
+
     cmap2 = create_linear_colormap(preset='viridis', recolor_base={'n':10, 'color':(0,0,0)})
     plt.imshow(gradient, aspect='auto', cmap=cmap2)
     plt.axis('off')

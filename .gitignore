@@ -4,8 +4,8 @@ __pycache__
 
 *.png
 *.jpg
-*.txt
 *.mp4
+*.txt
 *.zip
 !requirements.txt
 *.json
