@@ -34,6 +34,7 @@ def videoAttractor(
     dir="output",
     experiment_name="",
     cmap='magma',  # Colormap for histogram mode
+    color_bias = 0.2, # limit of color release at start of video
     pad_size=0,
     video_duration=10.0,  # Duration in seconds
     fps=30,  # Frames per second
@@ -98,6 +99,9 @@ def videoAttractor(
             log_density = np.log1p(density_map)
             max_log = np.max(log_density)
             norm_density = log_density / max_log
+            # release color gradually as frames progress (linear interp)
+            color_limit = color_bias + (1.0 - color_bias) * (frame_idx / total_frames)
+            norm_density = np.clip(norm_density, 0.0, color_limit)
             
             # opencv color format
             colored_map = colormap(norm_density)[:, :, :3] 
@@ -113,43 +117,13 @@ def videoAttractor(
     out.release()
     logging.info(f"saved attractor video to ./{pth}")
 
-def computeDensity(
-    xmin, xmax,
-    ymin, ymax,
-    x, y,
-    width=800,
-    height=800,
-    density_sigma=0,  # Gaussian smoothing for histogram mode
-):
-    """Compute the density histogram of the attractor points.
-    """
-     
-    # Normalize points to [0, 1] range
-    xs = (np.array(x) - xmin) / (xmax - xmin)
-    ys = (np.array(y) - ymin) / (ymax - ymin)
-
-    # Create a 2D histogram grid
-    H2, _, _ = np.histogram2d(xs, ys, bins=[width, height], range=[[0, 1], [0, 1]])
-    if np.sum(H2) == 0:
-        logging.debug(f"Empty histogram for attractor")
-        return
-
-    density = H2
-    if density_sigma > 0: density = gaussian_filter(H2, sigma=density_sigma)
-    density[density < 1e-10] = 1e-10 # Avoid zero values 
-    img_data = np.log1p(density) # log transform for better dynamic range
-    # normalize again to [0, 1]
-    img_data = (img_data - np.min(img_data)) / (np.max(img_data) - np.min(img_data)) 
-        
-    return img_data.T[::-1]
-
 if __name__ == "__main__":
 
     from lyapunov_exponents import loadAttractor, generateAttractorFromParameters
     
-    RENDER_ITERATIONS = 10_000_000
+    RENDER_ITERATIONS = 100_000_000
 
-    attractors = [15, 21, 22, 25, 29, 34]
+    attractors = [15, 21, 22] #, 25, 29, 34]
 
     for n in attractors:
         print(f"Processing attractor {n}...")
@@ -165,10 +139,11 @@ if __name__ == "__main__":
             xmin, xmax,
             ymin, ymax,
             x, y,
-            video_duration=10.0,
-            fps=20,
-            video_width=1000,
-            video_height=1000,
+            video_duration=12.0,
+            fps=14,
+            video_width=800,
+            video_height=800,
+            color_bias=0.25,
             pad_size=20,
             dir="set_num",
             cmap='magma'
