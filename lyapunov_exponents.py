@@ -16,6 +16,11 @@ from tqdm import tqdm
 from colors import (colorInterpolate, randomComplementaryColors, 
                     randomTriadColors, randomColoursGoldenRatio)
 
+import numpy as np
+import numba
+import math
+import random
+
 @numba.njit(fastmath=True)
 def compute_lyapunov(iterations, discard=1000):
     """Compute the Lyapunov exponent of the attractor defined by coefficients a and b.
@@ -23,54 +28,79 @@ def compute_lyapunov(iterations, discard=1000):
     discard: number of initial iterations to discard for transient behavior.
     """
     # random coefficients
-    ax = [random.uniform(-2, 2) for _ in range(6)]
-    ay = [random.uniform(-2, 2) for _ in range(6)]
+    ax = np.array([random.uniform(-2.0, 2.0) for _ in range(6)])
+    ay = np.array([random.uniform(-2.0, 2.0) for _ in range(6)])
+    
+    # cache coefficients in local variables for speed (cpu registers)
+    ax0, ax1, ax2, ax3, ax4, ax5 = ax[0], ax[1], ax[2], ax[3], ax[4], ax[5]
+    ay0, ay1, ay2, ay3, ay4, ay5 = ay[0], ay[1], ay[2], ay[3], ay[4], ay[5]
+
     # This is the initial point, it will serve as the seed for the series
     # Even though the series is chaotic, it is deterministic
-    x = [random.uniform(-0.5, 0.5)]
-    y = [random.uniform(-0.5, 0.5)]
+    x_val = random.uniform(-0.5, 0.5)
+    y_val = random.uniform(-0.5, 0.5)
+    
+    # Usamos listas, que son eficientes para "Early Exit" (si el atractor falla rápido)
+    x = [x_val]
+    y = [y_val]
+
     # min and max bounds
-    xmin = ymin = 1e32
-    xmax = ymax = -1e32
+    xmin = 1e32
+    ymin = 1e32
+    xmax = -1e32
+    ymax = -1e32
     lyapunov = 0.0     
     
     # calculate the initial separation between two nearby points and ensure it's not zero
-    d0 = -1
+    d0 = -1.0
     while d0 <= 0: # until the points are not identical
         # xe and ye are coords of our initial point, but slightly perturbed
-        xe = x[0] + random.uniform(-0.5, 0.5) / 1000.0
-        ye = y[0] + random.uniform(-0.5, 0.5) / 1000.0
+        xe = x_val + random.uniform(-0.5, 0.5) / 1000.0
+        ye = y_val + random.uniform(-0.5, 0.5) / 1000.0
         # dx and dy aid us in later filtering point or infinite attractors,
         # they are the vector between the seed and the perturbed point
-        dx = x[0] - xe
-        dy = y[0] - ye
+        dx = x_val - xe
+        dy = y_val - ye
         # this is just the distance of the previous vector, 
         # a theoretical infinitesimal that will be used to renormalize the
         # distance between the two points after each iteration
         d0 = math.sqrt(dx * dx + dy * dy) # (epsilon in Bennetin method)
 
     drawit = True
+    
+    # keep previous value to avoid acessing list
+    prev_x = x_val
+    prev_y = y_val
+
     # Calculate the attractor
     for i in range(1, iterations): # start at 1 to avoid using x[-1]
+        
         # Calculate next term
+        # direct multiplication is theoretically faster than pow
+        prev_x_sq = prev_x * prev_x
+        prev_y_sq = prev_y * prev_y
+        xy_term = prev_x * prev_y
 
-        x_i = ax[0] + ax[1]*x[i-1] + ax[2]*x[i-1]**2 + \
-                ax[3]*x[i-1]*y[i-1] + ax[4]*y[i-1] + ax[5]*y[i-1]**2
-        y_i = ay[0] + ay[1]*x[i-1] + ay[2]*x[i-1]**2 + \
-                ay[3]*x[i-1]*y[i-1] + ay[4]*y[i-1] + ay[5]*y[i-1]**2
+        x_i = ax0 + ax1*prev_x + ax2*prev_x_sq + ax3*xy_term + ax4*prev_y + ax5*prev_y_sq
+        y_i = ay0 + ay1*prev_x + ay2*prev_x_sq + ay3*xy_term + ay4*prev_y + ay5*prev_y_sq
 
         x.append(x_i)
         y.append(y_i)
+        
         # this represents a nearby point, but slightly separated, on another orbit
         # we'll use this to calculate the lyapunov exponent
-        xenew = ax[0] + ax[1]*xe + ax[2]*xe**2 + ax[3]*xe*ye + ax[4]*ye + ax[5]*ye**2
-        yenew = ay[0] + ay[1]*xe + ay[2]*xe**2 + ay[3]*xe*ye + ay[4]*ye + ay[5]*ye**2
+        xe_sq = xe * xe
+        ye_sq = ye * ye
+        xeye = xe * ye
+        xenew = ax0 + ax1*xe + ax2*xe_sq + ax3*xeye + ax4*ye + ax5*ye_sq
+        yenew = ay0 + ay1*xe + ay2*xe_sq + ay3*xeye + ay4*ye + ay5*ye_sq
 
         # Update the bounds
-        xmin = min(xmin, x[i])
-        ymin = min(ymin, y[i])
-        xmax = max(xmax, x[i])
-        ymax = max(ymax, y[i])
+        # if is faster than min/max functions
+        if x_i < xmin: xmin = x_i
+        if x_i > xmax: xmax = x_i
+        if y_i < ymin: ymin = y_i
+        if y_i > ymax: ymax = y_i
 
         # Does the series tend to infinity
         if xmin < -1e10 or ymin < -1e10 or xmax > 1e10 or ymax > 1e10:
@@ -80,9 +110,7 @@ def compute_lyapunov(iterations, discard=1000):
 
         # if the vector between current and prev point is too small, 
         # the series will tend to a point
-        dx = x[i] - x[i - 1]
-        dy = y[i] - y[i - 1]
-        if abs(dx) < 1e-10 and abs(dy) < 1e-10:
+        if abs(x_i - prev_x) < 1e-10 and abs(y_i - prev_y) < 1e-10:
             drawit = False
             #logging.info("point attractor")
             break
@@ -95,14 +123,32 @@ def compute_lyapunov(iterations, discard=1000):
 
             # two vectors are computed as the difference between the current point and
             # our perturbed point (xenew, yenew)
-            dx = x[i] - xenew
-            dy = y[i] - yenew
-            dd = math.sqrt(dx * dx + dy * dy) # compute the distance between the norm
+            dx = x_i - xenew
+            dy = y_i - yenew
+            
+            dd_sq = dx * dx + dy * dy
+            # prevent collapse due to identical points
+            if dd_sq < 1e-30:
+                drawit = False
+                break
+                
+            dd = math.sqrt(dd_sq) # compute the distance between the norm
+            
             # add the log of the ratio between the two current point's distances and the initial infinitesimal distance
-            lyapunov += math.log(math.fabs(dd / d0))
+            lyapunov += math.log(dd / d0)
+            
             # renormalize the perturbed point to be d0 away from the current point (to avoid overflow or underflow of the value)
-            xe = x[i] + d0 * dx / dd
-            ye = y[i] + d0 * dy / dd
+            scaler = d0 / dd
+            xe = x_i + dx * scaler
+            ye = y_i + dy * scaler
+        else:
+            # Actualizamos la sombra aunque no calculemos Lyapunov todavía
+            xe = xenew
+            ye = yenew
+
+        # Actualizar previo para la siguiente vuelta
+        prev_x = x_i
+        prev_y = y_i
 
         # TODO check for correctness of lyapunov normalization
         # lyapunov /= (MAXITERATIONS - 1000) # normalize
@@ -111,7 +157,7 @@ def compute_lyapunov(iterations, discard=1000):
     return lyapunov, drawit, x, y, ax, ay, xmin, xmax, ymin, ymax
 
 def createAttractors(examples, iterations, out_path="output"):
-    '''Generate strange attractors using random coefficients and save them as images and JSON files.
+    '''Create strange attractors and save them as images and JSON files.
     If you want more insights into the algorithm: 
     https://pmc.ncbi.nlm.nih.gov/articles/PMC7512692/#sec3-entropy-20-00175
     https://paulbourke.net/fractals/lyapunov/
