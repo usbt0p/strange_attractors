@@ -5,6 +5,8 @@ __pycache__
 *.png
 *.jpg
 *.txt
+*.mp4
+*.zip
 !requirements.txt
 *.json
 
