@@ -6,6 +6,7 @@ import logging
 from multiprocessing import cpu_count
 from concurrent.futures import ProcessPoolExecutor, as_completed
 
+import numba
 import math
 import random
 import matplotlib.pyplot as plt
@@ -206,11 +207,30 @@ def loadAttractor(pathname):
         parameters = json.load(f)
     return parameters
 
-def generateAttractorFromParameters(params, iters
-                                ) -> tuple[list, list, float, float, float, float, int]:
-    equation = params.get("equation", None)
-    a = params["coefficients"]["a"]
-    b = params["coefficients"]["b"]
+@numba.njit(fastmath=True)
+def compute_attractor_core(a, b, x0, y0, iters):
+    """Core function to compute the attractor points using Numba for speed.
+    a and b are arrays of coefficients, x0 and y0 are the seed points."""
+    # preallocate memory
+    x = np.zeros(iters)
+    y = np.zeros(iters)
+    x[0] = x0
+    y[0] = y0
+
+    for i in range(1, iters):
+        prev_x = x[i-1]
+        prev_y = y[i-1]
+        x[i] = a[0] + a[1]*prev_x + a[2]*prev_x**2 + a[3]*prev_x*prev_y + a[4]*prev_y + a[5]*prev_y**2
+        y[i] = b[0] + b[1]*prev_x + b[2]*prev_x**2 + b[3]*prev_x*prev_y + b[4]*prev_y + b[5]*prev_y**2
+    return x, y
+
+def generateAttractorFromParameters(params, iters):
+    '''Interface to generate attractor points from loaded parameters.'''
+
+    # ensure numpy for numba
+    a = np.array(params["coefficients"]["a"], dtype=np.float64)
+    b = np.array(params["coefficients"]["b"], dtype=np.float64)
+    
     xmin = params["bounds"]["xmin"]
     xmax = params["bounds"]["xmax"]
     ymin = params["bounds"]["ymin"]
@@ -218,16 +238,39 @@ def generateAttractorFromParameters(params, iters
     x0 = params["seed_point"]["x"]
     y0 = params["seed_point"]["y"]
 
-    x, y = [], []
-    x.append(x0)
-    y.append(y0)
-
-    for i in tqdm(range(1, iters), desc="Generating attractor from parameters"):
-        x.append(a[0] + a[1]*x[i-1] + a[2]*x[i-1]**2 + a[3]*x[i-1]*y[i-1] + a[4]*y[i-1] + a[5]*y[i-1]**2)
-        y.append(b[0] + b[1]*x[i-1] + b[2]*x[i-1]**2 + b[3]*x[i-1]*y[i-1] + b[4]*y[i-1] + b[5]*y[i-1]**2)
+    x, y = compute_attractor_core(a, b, x0, y0, iters)
 
     logging.info("Attractor generated from parameters.")
     return x, y, xmin, xmax, ymin, ymax
+
+def computeDensity(
+    xmin, xmax,
+    ymin, ymax,
+    x, y,
+    width, height,
+    density_sigma,  # Gaussian smoothing for histogram mode
+):
+    """Compute the log-density histogram of the attractor points.
+    """
+     
+    # Normalize points to [0, 1] range
+    xs = (np.array(x) - xmin) / (xmax - xmin)
+    ys = (np.array(y) - ymin) / (ymax - ymin)
+
+    # Create a 2D histogram grid
+    H2, _, _ = np.histogram2d(xs, ys, bins=[width, height], range=[[0, 1], [0, 1]])
+    if np.sum(H2) == 0:
+        logging.debug(f"Empty histogram for attractor")
+        return
+
+    density = H2
+    if density_sigma > 0: density = gaussian_filter(H2, sigma=density_sigma)
+    density[density < 1e-10] = 1e-10 # Avoid zero values 
+    img_data = np.log1p(density) # log transform for better dynamic range
+    # normalize again to [0, 1]
+    img_data = (img_data - np.min(img_data)) / (np.max(img_data) - np.min(img_data)) 
+    # "rotate" the histogram to match coords, although the orientation is not really important
+    return img_data.T[::-1]
 
 def drawAttractor(
     name,
@@ -273,31 +316,22 @@ def drawAttractor(
 
 
     if interpolation == 'histogram':
-        # Normalize points to [0, 1] range
-        xs = (np.array(x) - xmin) / (xmax - xmin)
-        ys = (np.array(y) - ymin) / (ymax - ymin)
-
-        # Create a 2D histogram grid
-        H2, _, _ = np.histogram2d(xs, ys, bins=[width, height], range=[[0, 1], [0, 1]])
-        if np.sum(H2) == 0:
-            logging.debug(f"Empty histogram for attractor {name}")
-            return
-
-        density = H2
-        if density_sigma > 0: density = gaussian_filter(H2, sigma=density_sigma)
-        density[density < 1e-10] = 1e-10 # Avoid zero values before log transform
-        img_data = np.log1p(density) # Apply log transform for better dynamic range
-        img_data = (img_data - np.min(img_data)) / ( # normalize again to [0, 1]
-            np.max(img_data) - np.min(img_data))
+        
+        img_data = computeDensity(
+            xmin, xmax,
+            ymin, ymax,
+            x, y,
+            width, height,
+            density_sigma,
+        )
 
         # Create the plot
         plt.figure(figsize=(width / 100, height / 100), dpi=100)
         plt.imshow(
-            # "rotate" the histogram to match coords, although the orientation is not really important
-            img_data.T[::-1], 
+            img_data, 
             origin="lower",
             interpolation="bicubic",
-            cmap=cmap,  # Use a perceptually uniform colormap
+            cmap=cmap,
         )
         plt.axis("off")
         plt.tight_layout()
@@ -368,7 +402,7 @@ if __name__ == "__main__":
 
     recolor = {'n':1, 'color':(0,0,0), 'resample_size':512}
 
-    # giver more space to the last colour
+    # give more space to the last colour
     # TODO fix this
     positions = [0.0, 0.35, 1.0]
 

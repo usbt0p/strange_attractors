@@ -129,6 +129,7 @@ results = draw_attractors_in_parallel(
 - [ ] separate plotting and point generation in the drawing code.
 - [ ] refactor the generateFilename function to be used by all
 
+- [ ] optimize sequential functions with numba jit
 - [ ] Add symbolic equations and save them as parameters. That way, automatic equation generation will be a possibility (with arbitrary params).
 - [x] Test the correct loading with seed points: all attractors should work when loaded.
 - [ ] Change the quadratic equation to use `a**x` instead of `a*x*x`.
