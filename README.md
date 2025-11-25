@@ -189,10 +189,10 @@ ffmpeg \
 ```
 
 ## TODO Some ideas to try 
-- [ ] separate plotting and point generation in the drawing code.
+- [x] separate plotting and point generation in the drawing code.
 - [ ] refactor the generateFilename function to be used by all
 
-- [ ] optimize sequential functions with numba jit
+- [x] optimize sequential functions with numba jit
 - [ ] Add symbolic equations and save them as parameters. That way, automatic equation generation will be a possibility (with arbitrary params).
 - [x] Test the correct loading with seed points: all attractors should work when loaded.
 - [ ] Change the quadratic equation to use `a**x` instead of `a*x*x`.
@@ -204,7 +204,7 @@ ffmpeg \
     - [ ] Find out the relation the non-interesting generated attractors have with pixel density / exponents.
 - [ ] Make higher dimensional attractors and project them into a smaller space.
 - [ ] Make 3D attractors and plot them in 3D.
-- [ ] Make a video / gif of the points appearing with their respective colour.
+- [x] Make a video / gif of the points appearing with their respective colour.
 - [x] add padding to sides of drawings (just blank space at the limits)
 - [ ] add transparency to the histogram mode
 - [ ] add `exists_ok=True` for ignoring existing files
