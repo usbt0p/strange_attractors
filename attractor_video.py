@@ -132,8 +132,6 @@ if __name__ == "__main__":
     colors = ['viridis', 'afmhot', "binary", "gray", "twilight",
               "turbo", "BuPu", "YlGn", "YlOrRd", "Blues", "Reds", "Greens",
               "seismic", "Accent"]
-    
-    params = loadAttractor(f"/home/usbt0p/Programs/strange_attractors/set_num/out/15_0.json")
         
     for n in attractors:
         print(f"Processing attractor {n}...")

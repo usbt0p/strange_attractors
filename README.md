@@ -125,6 +125,69 @@ results = draw_attractors_in_parallel(
     )
 ```
 
+---
+
+A video generation utility is also provided in `attractor_video.py`, which can create videos of the attractor points being drawn over time.
+An example of its usage:
+
+```python
+from lyapunov_exponents import loadAttractor, generateAttractorFromParameters
+    
+    RENDER_ITERATIONS = 200_000_000
+
+    attractors = [15, 21, 1, 25, 13, 34]
+    colors = ['viridis', 'afmhot', "binary", "gray", "twilight",
+              "turbo", "BuPu", "YlGn", "YlOrRd", "Blues", "Reds", "Greens",
+              "seismic", "Accent"]
+        
+    for n in attractors:
+        print(f"Processing attractor {n}...")
+
+        params = loadAttractor(f"examples/out/{n}_0.json")
+        x, y, xmin, xmax, ymin, ymax = \
+            generateAttractorFromParameters(params, RENDER_ITERATIONS)
+        
+        print(f"Attractor {n} loaded and generated.")
+
+        for color in colors:
+            videoAttractor(
+                f"{n}_{color}",
+                xmin, xmax,
+                ymin, ymax,
+                x, y,
+                video_duration=10.0,
+                fps=14,
+                video_width=800,
+                video_height=800,
+                color_bias=0.25,
+                pad_size=20,
+                dir="videos",
+                cmap=color,
+                video_end_pad=2.0,
+                experiment_name=f"colors"
+            )
+
+        print(f"Attractor {n} video generated.")
+        print()
+```
+Outputs look something like this (but not as gifs):
+
+<img src="examples/15_twilight_800x800_0.gif" width="500"/>
+
+Outputs are encoded with `mp4v`, but if you want a mobile-compatible format like `yuv420p`, try this:
+```bash
+ffmpeg -i "inputvideo.mp4" -c:v libx264 -pix_fmt yuv420p -c:a aac "outvideo_mobile.mp4"
+```
+or for a gif:
+```bash
+ffmpeg \
+  -i video.mp4 \
+  -r 15 \ # fps
+  # this filter pipeline removes dithering-like artifacts of scaling
+  -vf "scale=512:-1,split[s0][s1];[s0]palettegen[p];[s1][p]paletteuse" \
+  out.gif
+```
+
 ## TODO Some ideas to try 
 - [ ] separate plotting and point generation in the drawing code.
 - [ ] refactor the generateFilename function to be used by all
