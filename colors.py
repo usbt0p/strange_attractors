@@ -117,13 +117,17 @@ def recolor_colormap_base(cmap, n=1, color=(0, 0, 0), resample_size=256) -> mcol
 
 def create_linear_colormap(colors: list[tuple]=None, 
                            positions: list[float]=None, 
-                           name='custom_cmap', preset: str=None, 
-                           recolor_base : dict ={'n':1, 'color':(0,0,0)}
+                           name='custom_cmap', 
+                           preset: str=None, 
+                           recolor_base : dict = None #{'n':1, 'color':(0,0,0)}
                            ) -> mcolors.LinearSegmentedColormap:
     """
     Create a custom linear colormap or use a preset colormap from matplotlib.
     The positions must sum up to 1.0 and allow to define where each color is placed in the gradient.
     This is useful to create smooth color gradients for rendering attractors using plt.imshow.
+    
+    Recolor base allows to modify the first n colors of the colormap to a specific color.
+    For example: `{'n':1, 'color':(0,0,0), resample_size:256}` will set the first color to black.
 
     https://matplotlib.org/stable/users/explain/colors/colormap-manipulation.html#creating-listed-colormaps
     """

@@ -192,18 +192,35 @@ ffmpeg \
 - [x] separate plotting and point generation in the drawing code.
 - [ ] refactor the generateFilename function to be used by all
 
-- [x] optimize sequential functions with numba jit
-- [ ] Add symbolic equations and save them as parameters. That way, automatic equation generation will be a possibility (with arbitrary params).
-- [x] Test the correct loading with seed points: all attractors should work when loaded.
-- [ ] Change the quadratic equation to use `a**x` instead of `a*x*x`.
-- [ ] Test the Lyapunov normalization `lyapunov /= num_iters`.
-- [ ] Implement fractal dimension calculation(need a meethod that yields all lyapunov exponents, nut just the highest).
-- [ ] Perform data analysis on a big generated set of attractors + their parameters:
+- optimize:
+    - [ ] density computation (numba vs numpy)
+    - [ ] chunked version for allowing parallel gen with huge iter counts
+    - [x] optimize sequential functions with numba jit
+    - [ ] benchmark
+
+- equations:
+    - [ ] add some new from attractors book (ttriadic, tetradic, quintic, cosine and sphere projected)
+    - [ ] Add symbolic equations and save them as parameters. That way, automatic equation generation will be a possibility (with arbitrary params).
+    - [ ] Change the quadratic equation to use `a**x` instead of `a*x*x`.
+    - [ ] Make higher dimensional attractors and project them into a smaller space.
+    - [ ] Make 3D attractors and plot them in 3D.
+
+- lyapunov:
+    - [ ] Test the Lyapunov normalization `lyapunov /= num_iters`.
+    - [ ] Implement fractal dimension calculation (need a meethod that yields all lyapunov exponents, nut just the highest).
+
+- Perform data analysis on a big generated set of attractors + their parameters:
     - [ ] Augment parameters and calculate stats.
     - [ ] Cluster by attractor features.
     - [ ] Find out the relation the non-interesting generated attractors have with pixel density / exponents.
-- [ ] Make higher dimensional attractors and project them into a smaller space.
-- [ ] Make 3D attractors and plot them in 3D.
+    - [ ] clusterby visual similarity
+    - [ ] find out a filter to discard non interesting attractors (besides lyapunov)
+
+- colors:
+    - [ ] in the matplotlib colo0rmaps page theres info about how to create colormap categories, try that:
+        https://matplotlib.org/stable/users/explain/colors/colormaps.html#miscellaneous
+
+- [x] Test the correct loading with seed points: all attractors should work when loaded.
 - [x] Make a video / gif of the points appearing with their respective colour.
 - [x] add padding to sides of drawings (just blank space at the limits)
 - [ ] add transparency to the histogram mode

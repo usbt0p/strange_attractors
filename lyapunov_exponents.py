@@ -28,12 +28,12 @@ def compute_lyapunov(iterations, discard=1000):
     discard: number of initial iterations to discard for transient behavior.
     """
     # random coefficients
-    ax = np.array([random.uniform(-2.0, 2.0) for _ in range(6)])
-    ay = np.array([random.uniform(-2.0, 2.0) for _ in range(6)])
+    ax = np.array([random.uniform(-3.0, 3.0) for _ in range(5)])
+    ay = np.array([random.uniform(-3.0, 3.0) for _ in range(5)])
     
     # cache coefficients in local variables for speed (cpu registers)
-    ax0, ax1, ax2, ax3, ax4, ax5 = ax[0], ax[1], ax[2], ax[3], ax[4], ax[5]
-    ay0, ay1, ay2, ay3, ay4, ay5 = ay[0], ay[1], ay[2], ay[3], ay[4], ay[5]
+    ax0, ax1, ax2, ax3, ax4 = ax[0], ax[1], ax[2], ax[3], ax[4]
+    ay0, ay1, ay2, ay3, ay4 = ay[0], ay[1], ay[2], ay[3], ay[4]
 
     # This is the initial point, it will serve as the seed for the series
     # Even though the series is chaotic, it is deterministic
@@ -77,12 +77,10 @@ def compute_lyapunov(iterations, discard=1000):
         
         # Calculate next term
         # direct multiplication is theoretically faster than pow
-        prev_x_sq = prev_x * prev_x
-        prev_y_sq = prev_y * prev_y
-        xy_term = prev_x * prev_y
 
-        x_i = ax0 + ax1*prev_x + ax2*prev_x_sq + ax3*xy_term + ax4*prev_y + ax5*prev_y_sq
-        y_i = ay0 + ay1*prev_x + ay2*prev_x_sq + ay3*xy_term + ay4*prev_y + ay5*prev_y_sq
+        x_i = ax0 + ax1*prev_x + ax2*prev_y + abs(ax3*prev_x) + abs(ax4*prev_y)
+        y_i = ay0 + ay1*prev_x + ay2*prev_y + abs(ay3*prev_x) + abs(ay4*prev_y)
+        #y_i = ay0 + ay1*prev_x + ay2*prev_x_sq + ay3*xy_term + ay4*prev_y + ay5*prev_y_sq
 
         x.append(x_i)
         y.append(y_i)
@@ -92,8 +90,8 @@ def compute_lyapunov(iterations, discard=1000):
         xe_sq = xe * xe
         ye_sq = ye * ye
         xeye = xe * ye
-        xenew = ax0 + ax1*xe + ax2*xe_sq + ax3*xeye + ax4*ye + ax5*ye_sq
-        yenew = ay0 + ay1*xe + ay2*xe_sq + ay3*xeye + ay4*ye + ay5*ye_sq
+        xenew = ax0 + ax1*xe + ax2*xe_sq + abs(ax3*xeye) + abs(ax4*ye)
+        yenew = ay0 + ay1*xe + ay2*xe_sq + abs(ay3*xeye) + abs(ay4*ye)
 
         # Update the bounds
         # if is faster than min/max functions
@@ -173,9 +171,11 @@ def createAttractors(examples, iterations, out_path="output"):
     with open(f"{out_path}/attr_number.txt", "r") as f:
         file_index = int(f.read().strip())
 
+    count = 0
     pbar = tqdm(total=examples, desc="Generating attractors")
+    
     try: # catch keyboard interrupt to save progress
-        while file_index < examples:
+        while count < examples:
 
             lyapunov, drawit, x, y, ax, ay, xmin, xmax, ymin, ymax = compute_lyapunov(
                 iterations=iterations, discard=1000,
@@ -215,8 +215,10 @@ def createAttractors(examples, iterations, out_path="output"):
                     height=500,
                     dir=out_path,
                     interpolation=None,
+                    #background_color=(255, 255, 255),
                 )
                 file_index += 1
+                count += 1
                 pbar.update(1)
 
     except KeyboardInterrupt:
@@ -240,8 +242,8 @@ def saveAttractor(name, path, equation, a, b, xmin, xmax, ymin, ymax, x_o, y_o, 
             "ymax": ymax
         },
         "coefficients": {
-            "a": [a[i] for i in range(6)],
-            "b": [b[i] for i in range(6)]
+            "a": [a[i] for i in range(len(a))],
+            "b": [b[i] for i in range(len(b))]
         },
         "seed_point": {
             "x": x_o,
@@ -275,8 +277,8 @@ def compute_attractor_core(a, b, x0, y0, iters):
     for i in range(1, iters):
         prev_x = x[i-1]
         prev_y = y[i-1]
-        x[i] = a[0] + a[1]*prev_x + a[2]*prev_x**2 + a[3]*prev_x*prev_y + a[4]*prev_y + a[5]*prev_y**2
-        y[i] = b[0] + b[1]*prev_x + b[2]*prev_x**2 + b[3]*prev_x*prev_y + b[4]*prev_y + b[5]*prev_y**2
+        x[i] = a[0] + a[1]*prev_x + a[2]*prev_y + abs(a[3]*prev_x) + abs(a[4]*prev_y)
+        y[i] = b[0] + b[1]*prev_x + b[2]*prev_y + abs(b[3]*prev_x) + abs(b[4]*prev_y)
     return x, y
 
 def generateAttractorFromParameters(params, iters):
@@ -298,33 +300,72 @@ def generateAttractorFromParameters(params, iters):
     logging.info("Attractor generated from parameters.")
     return x, y, xmin, xmax, ymin, ymax
 
+@numba.njit(fastmath=True, parallel=False)
+def fast_histogram(x, y, xmin, xmax, ymin, ymax, width, height):
+    """
+    Calcula el histograma 2D directamente sin crear arrays intermedios
+    ni usar la lenta np.histogram2d.
+    """
+    
+    grid = np.zeros((width, height), dtype=np.float32)
+    n_points = len(x)
+    
+    scale_x = width / (xmax - xmin)
+    scale_y = height / (ymax - ymin)
+    
+    for i in numba.prange(n_points):
+        
+        px = int((x[i] - xmin) * scale_x)
+        py = int((y[i] - ymin) * scale_y)
+        
+        if px >= width: px = width - 1
+        elif px < 0: px = 0
+        
+        if py >= height: py = height - 1
+        elif py < 0: py = 0
+        
+        # 3. Acumular
+        grid[px, py] += 1.0
+        
+    return grid
+
 def computeDensity(
     xmin, xmax,
     ymin, ymax,
     x, y,
     width, height,
-    density_sigma,  # Gaussian smoothing for histogram mode
+    density_sigma=0, 
 ):
-    """Compute the log-density histogram of the attractor points.
-    """
-     
-    # Normalize points to [0, 1] range
-    xs = (np.array(x) - xmin) / (xmax - xmin)
-    ys = (np.array(y) - ymin) / (ymax - ymin)
+    """Compute the log-density histogram of the attractor points (Optimized)."""
+   
+    x_arr = np.asarray(x)
+    y_arr = np.asarray(y)
 
-    # Create a 2D histogram grid
-    H2, _, _ = np.histogram2d(xs, ys, bins=[width, height], range=[[0, 1], [0, 1]])
-    if np.sum(H2) == 0:
+    H2 = fast_histogram(x_arr, y_arr, xmin, xmax, ymin, ymax, width, height)
+
+    if not H2.any():
         logging.debug(f"Empty histogram for attractor")
-        return
+        return None 
 
     density = H2
-    if density_sigma > 0: density = gaussian_filter(H2, sigma=density_sigma)
-    density[density < 1e-10] = 1e-10 # Avoid zero values 
-    img_data = np.log1p(density) # log transform for better dynamic range
-    # normalize again to [0, 1]
-    img_data = (img_data - np.min(img_data)) / (np.max(img_data) - np.min(img_data)) 
-    # "rotate" the histogram to match coords, although the orientation is not really important
+    
+    if density_sigma > 0: 
+        density = gaussian_filter(H2, sigma=density_sigma)
+    
+    density = np.maximum(density, 1e-10)
+    
+    img_data = np.log1p(density) # Log transform
+    
+    min_val = np.min(img_data)
+    max_val = np.max(img_data)
+    
+    diff = max_val - min_val
+    if diff > 0:
+        img_data = (img_data - min_val) / diff
+    else:
+        img_data = np.zeros_like(img_data)
+
+    # "rotate" the histogram to match coords
     return img_data.T[::-1]
 
 def drawAttractor(
@@ -394,7 +435,8 @@ def drawAttractor(
         # Save the image
         pth = generateFilename(dir, experiment_name, name, interpolation, width, height, maxiterations)
         # TODO for alpha, something like np.array((*color, 1.0))??
-        background = tuple(c / 255 for c in background_color) if background_color else tuple(cmap(0)[:3])
+        background = tuple(
+            c / 255 for c in background_color) if background_color else tuple(cmap(0)[:3])
         plt.savefig(pth, bbox_inches="tight", pad_inches=pad_size, facecolor=background)
         plt.close()
         logging.info(f"saved attractor to ./{pth}")
@@ -428,82 +470,71 @@ if __name__ == "__main__":
     from parallel import draw_attractors_in_parallel, draw_single_attractor
     from colors import create_linear_colormap
 
-    CREATE_ITERATIONS = 100_000
+    CREATE_ITERATIONS = 200_000
     EXAMPLES = 100
-    RENDER_ITERATIONS = 25_000_000 # long processing but good rendering
+    RENDER_ITERATIONS = 200_000_000 # long processing but good rendering
 
-    base_dir = "numba"
+    base_dir = "imgs/cojones"
+    b2 = "imgs/absolutevalue"
+    input_files = glob.glob(f"{base_dir}/out/*.json") + glob.glob(f"{b2}/out/*.json")
 
-    attractors = [4750, 4755, 4761, 4827, 4866, 4894, 4909, 4917, 4944, 
-                  4979, 5009, 5014, 5043, 5059, 5061, 5072, 5094, 5095, 
-                  5154, 5171, 5188, 5279, 5352, 5354, 5363, 5385, 5454, 5455]
-
-    input_files = [f"new_attractors/out/{a}_0.json.json" for a in attractors]
+    assert len(input_files) > 300, f"len is {len(input_files)}"
 
     render_kwargs = {
-        "width": 1000,
-        "height": 1000,
-        "cmap": create_linear_colormap(preset='viridis'),
-        "dir": f"{base_dir}/renders",
+        "width": 1080,
+        "height": 1080,
+        "dir": "imgs/abs_renders",
         "interpolation": "histogram",
-        "density_sigma": 0,
-        "pad_size": 0.5
+        "pad_size": 0.5,
     }
     #logging.basicConfig(level=logging.INFO)
     
     # TODO parallelize this too
     # find EXAMPLES random attractors with CREATE_ITERATIONS iters for each one
-    createAttractors(out_path=f"{base_dir}/out", examples=EXAMPLES, iterations=CREATE_ITERATIONS)
+    #createAttractors(out_path=f"{base_dir}/out", examples=EXAMPLES, iterations=CREATE_ITERATIONS)
 
-    recolor = {'n':1, 'color':(0,0,0), 'resample_size':512}
-
-    # give more space to the last colour
-    # TODO fix this
-    positions = [0.0, 0.35, 1.0]
-
-    # customs = [
-    #     [(0,0,0), (2, 24, 107), (255, 145, 0)],
-    #     [(255, 255, 255), (190, 255, 147), (0, 86, 161)],
-    #     [(255, 255, 255), (192, 255, 57), (255, 92, 122)],
-    # ]
-
-    # for custom in customs:
-    #     print(f"Rendering with custom colormap {custom}...")
-    #     recolor['color'] = custom[0]
-
-    #     render_kwargs['cmap'] = create_linear_colormap(colors=custom,
-    #                                                    positions=positions,
-    #                                                     recolor_base=recolor)
-    #     results = draw_attractors_in_parallel(
-    #             input_files, 
-    #             RENDER_ITERATIONS, 
-    #             n_processes=cpu_count() - 6, # leave some CPU for other tasks
-    #             batch_size=10,
-    #             **render_kwargs
-    #         )
-    
     print("CUSTOMS DONE")
     input("Press Enter to continue to preset colormaps...")
 
-    cmaps = ['magma', 'viridis', 'cividis', 
-             'turbo', 'summer', 'autumn', 
-             'winter', 'copper', 'afmhot', 
-             'bone', 'PuOr', 'berlin', 'managua']
-    recolor['color'] = (0,0,0)
-        
-    for cmap_name in cmaps:
-        print(f"Rendering with colormap {cmap_name}...")
-        render_kwargs['cmap'] = create_linear_colormap(preset=cmap_name, 
-                                                       recolor_base=recolor)
+    # cmaps = ['magma', 'viridis', 'cividis', 
+    #          'turbo', 'summer', 'autumn', 
+    #          'winter', 'copper', 'afmhot', 
+    #          'bone', 'PuOr', 'berlin', 'managua']
 
-        # rendering multiple attracctor is a perfect task for multiprocessing! cpu go brr
-        results = draw_attractors_in_parallel(
-            input_files, 
-            RENDER_ITERATIONS, 
-            n_processes=os.cpu_count() - 6, # leave some CPU for other tasks
-            batch_size=10,
-            **render_kwargs
-        )
+    cmaps = ["binary", "gray", "twilight", "twilight_shifted", "magma", "berlin", "copper"]
+
+    def compute_attractor_pixel_rate(image_path):
+        '''Get proportion of attractor pixels over total image pixels.
+        Used to filter chaotic but trivial attractors'''
+        img = plt.imread(image_path)
+        total_pixels = img.shape[0] * img.shape[1]
+        black_pixels = np.sum(np.all(img[:, :, :3] == 0, axis=-1))
+        return black_pixels / total_pixels
+
+    for file in tqdm(input_files):
+        root, _ = os.path.splitext(file)
+        js = root + ".png"
+        if os.path.exists(js) and compute_attractor_pixel_rate(js) > 0.01:
+            for map in cmaps:
+                render_kwargs['cmap'] = create_linear_colormap(preset=map)
+                #print(f"Rendering {file}...")
+                draw_single_attractor(file, 
+                                    render_iterations=RENDER_ITERATIONS, 
+                                    **render_kwargs)
+        
+    # for cmap_name in cmaps:
+    #     print(f"Rendering with colormap {cmap_name}...")
+    #     render_kwargs['cmap'] = create_linear_colormap(preset=cmap_name) 
+    #                                                    #recolor_base=recolor)
+
+    #     # rendering multiple attracctor is a perfect task for multiprocessing! cpu go brr
+    #     results = draw_attractors_in_parallel(
+    #         input_files, 
+    #         RENDER_ITERATIONS, 
+    #         n_processes=2, # leave some CPU for other tasks
+    #         batch_size=2,
+    #         **render_kwargs
+    #     )
 
 
 
