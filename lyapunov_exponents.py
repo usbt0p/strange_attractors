@@ -9,27 +9,22 @@ import random
 import matplotlib.pyplot as plt
 import numpy as np
 
-from PIL import Image, ImageDraw, ImageFilter
+from PIL import Image, ImageDraw
 from scipy.ndimage import gaussian_filter
 from tqdm import tqdm
-
-from colors import (colorInterpolate, randomComplementaryColors, 
-                    randomTriadColors, randomColoursGoldenRatio)
-
-import numpy as np
-import numba
-import math
-import random
 
 @numba.njit(fastmath=True)
 def compute_lyapunov(iterations, discard=1000):
     """Compute the Lyapunov exponent of the attractor defined by coefficients a and b.
     a and b are arrays of coefficients, x0 and y0 are the seed points.
-    discard: number of initial iterations to discard for transient behavior.
+    
+    Args:
+        iterations: iterations to use when calculating the attractor
+        discard: number of initial iterations to discard for transient behavior.
     """
     # random coefficients
-    ax = np.array([random.uniform(-3.0, 3.0) for _ in range(5)])
-    ay = np.array([random.uniform(-3.0, 3.0) for _ in range(5)])
+    ax = np.array([np.random.uniform(-3.0, 3.0) for _ in range(5)])
+    ay = np.array([np.random.uniform(-3.0, 3.0) for _ in range(5)])
     
     # cache coefficients in local variables for speed (cpu registers)
     ax0, ax1, ax2, ax3, ax4 = ax[0], ax[1], ax[2], ax[3], ax[4]
@@ -37,8 +32,8 @@ def compute_lyapunov(iterations, discard=1000):
 
     # This is the initial point, it will serve as the seed for the series
     # Even though the series is chaotic, it is deterministic
-    x_val = random.uniform(-0.5, 0.5)
-    y_val = random.uniform(-0.5, 0.5)
+    x_val = np.random.uniform(-0.5, 0.5)
+    y_val = np.random.uniform(-0.5, 0.5)
     
     # Usamos listas, que son eficientes para "Early Exit" (si el atractor falla rápido)
     x = [x_val]
@@ -55,8 +50,8 @@ def compute_lyapunov(iterations, discard=1000):
     d0 = -1.0
     while d0 <= 0: # until the points are not identical
         # xe and ye are coords of our initial point, but slightly perturbed
-        xe = x_val + random.uniform(-0.5, 0.5) / 1000.0
-        ye = y_val + random.uniform(-0.5, 0.5) / 1000.0
+        xe = x_val + np.random.uniform(-0.5, 0.5) / 1000.0
+        ye = y_val + np.random.uniform(-0.5, 0.5) / 1000.0
         # dx and dy aid us in later filtering point or infinite attractors,
         # they are the vector between the seed and the perturbed point
         dx = x_val - xe
@@ -215,7 +210,7 @@ def createAttractors(examples, iterations, out_path="output"):
                     height=500,
                     dir=out_path,
                     interpolation=None,
-                    #background_color=(255, 255, 255),
+                    background_color=(255, 255, 255),
                 )
                 file_index += 1
                 count += 1
@@ -435,17 +430,18 @@ def drawAttractor(
         # Save the image
         pth = generateFilename(dir, experiment_name, name, interpolation, width, height, maxiterations)
         # TODO for alpha, something like np.array((*color, 1.0))??
-        background = tuple(
-            c / 255 for c in background_color) if background_color else tuple(cmap(0)[:3])
+        background = tuple(c / 255 for c in background_color) if background_color else tuple(cmap(0)[:3])
         plt.savefig(pth, bbox_inches="tight", pad_inches=pad_size, facecolor=background)
         plt.close()
         logging.info(f"saved attractor to ./{pth}")
     
     else:
+        # this is mostrly deprecated as histogram method works much better, only for creating the initial images
+        from colors import colorInterpolate
         if background_color:
-            img = Image.new("RGBA", (width, height), background_color)
+            img = Image.new("RGB", (width, height), background_color)
         else:
-            img = Image.new("RGBA", (width, height))
+            img = Image.new("RGB", (width, height))
         draw = ImageDraw.Draw(img)
 
         # iterate through all points and draw them with the color interpolated
@@ -465,76 +461,49 @@ def drawAttractor(
         img.save(pth, "PNG")
         logging.info(f"saved attractor to ./{pth}")
 
+def compute_attractor_pixel_rate(image_path):
+    '''Get proportion of attractor pixels over total image pixels.
+    Used to filter chaotic but trivial attractors.
+    '''        
+    img = plt.imread(image_path)
+    total_pixels = img.shape[0] * img.shape[1]
+    
+    if img.shape[2] == 4:
+        # if the image is transparent, count only the non-transparent pixels
+        occupied_pixels = np.sum(img[:, :, 3] > 0)
+    else:
+        # if the image is not transparent, count only the black pixels
+        occupied_pixels = np.sum(np.all(img[:, :, :3] == 0, axis=-1))
+
+    return occupied_pixels / total_pixels
+
+# def compute_attractor_pixel_rate(image_path):
+#         '''Get proportion of attractor pixels over total image pixels.
+#         Used to filter chaotic but trivial attractors.
+#         Assumes rgb images (no alpha).
+#         '''        
+#         img = plt.imread(image_path)
+#         total_pixels = img.shape[0] * img.shape[1]
+#         black_pixels = np.sum(np.all(img[:, :, :3] == 0, axis=-1))
+#         return black_pixels / total_pixels
+
+# def compute_attractor_pixel_rate(image_path):
+#     '''Get proportion of attractor pixels over total image pixels.
+#     Used to filter chaotic but trivial attractors.
+#     '''        
+#     img = plt.imread(image_path)
+#     total_pixels = img.shape[0] * img.shape[1]
+    
+#     if img.shape[2] == 4:
+#         occupied_pixels = np.sum(img[:, :, :3] > 0)
+#     else:
+#         occupied_pixels = np.sum(np.any(img[:, :, :3] != 0, axis=-1))
+
+#     return occupied_pixels / total_pixels
+
 
 if __name__ == "__main__":
-    from parallel import draw_attractors_in_parallel, draw_single_attractor
-    from colors import create_linear_colormap
-
-    CREATE_ITERATIONS = 200_000
-    EXAMPLES = 100
-    RENDER_ITERATIONS = 200_000_000 # long processing but good rendering
-
-    base_dir = "imgs/cojones"
-    b2 = "imgs/absolutevalue"
-    input_files = glob.glob(f"{base_dir}/out/*.json") + glob.glob(f"{b2}/out/*.json")
-
-    assert len(input_files) > 300, f"len is {len(input_files)}"
-
-    render_kwargs = {
-        "width": 1080,
-        "height": 1080,
-        "dir": "imgs/abs_renders",
-        "interpolation": "histogram",
-        "pad_size": 0.5,
-    }
-    #logging.basicConfig(level=logging.INFO)
-    
-    # TODO parallelize this too
-    # find EXAMPLES random attractors with CREATE_ITERATIONS iters for each one
-    #createAttractors(out_path=f"{base_dir}/out", examples=EXAMPLES, iterations=CREATE_ITERATIONS)
-
-    print("CUSTOMS DONE")
-    input("Press Enter to continue to preset colormaps...")
-
-    # cmaps = ['magma', 'viridis', 'cividis', 
-    #          'turbo', 'summer', 'autumn', 
-    #          'winter', 'copper', 'afmhot', 
-    #          'bone', 'PuOr', 'berlin', 'managua']
-
-    cmaps = ["binary", "gray", "twilight", "twilight_shifted", "magma", "berlin", "copper"]
-
-    def compute_attractor_pixel_rate(image_path):
-        '''Get proportion of attractor pixels over total image pixels.
-        Used to filter chaotic but trivial attractors'''
-        img = plt.imread(image_path)
-        total_pixels = img.shape[0] * img.shape[1]
-        black_pixels = np.sum(np.all(img[:, :, :3] == 0, axis=-1))
-        return black_pixels / total_pixels
-
-    for file in tqdm(input_files):
-        root, _ = os.path.splitext(file)
-        js = root + ".png"
-        if os.path.exists(js) and compute_attractor_pixel_rate(js) > 0.01:
-            for map in cmaps:
-                render_kwargs['cmap'] = create_linear_colormap(preset=map)
-                #print(f"Rendering {file}...")
-                draw_single_attractor(file, 
-                                    render_iterations=RENDER_ITERATIONS, 
-                                    **render_kwargs)
-        
-    # for cmap_name in cmaps:
-    #     print(f"Rendering with colormap {cmap_name}...")
-    #     render_kwargs['cmap'] = create_linear_colormap(preset=cmap_name) 
-    #                                                    #recolor_base=recolor)
-
-    #     # rendering multiple attracctor is a perfect task for multiprocessing! cpu go brr
-    #     results = draw_attractors_in_parallel(
-    #         input_files, 
-    #         RENDER_ITERATIONS, 
-    #         n_processes=2, # leave some CPU for other tasks
-    #         batch_size=2,
-    #         **render_kwargs
-    #     )
+    ...
 
 
 

@@ -191,12 +191,12 @@ ffmpeg \
 ## TODO Some ideas to try 
 - [x] separate plotting and point generation in the drawing code.
 - [ ] refactor the generateFilename function to be used by all
+- [ ] PRIORITY: in the createAttractors function, ensure the number created is one with FILTERED pixel density! no default shitty attractors
 
 - optimize:
-    - [ ] density computation (numba vs numpy)
+    - [x] density computation (numba vs numpy)
     - [ ] chunked version for allowing parallel gen with huge iter counts
     - [x] optimize sequential functions with numba jit
-    - [ ] benchmark
 
 - equations:
     - [ ] add some new from attractors book (ttriadic, tetradic, quintic, cosine and sphere projected)
@@ -214,10 +214,10 @@ ffmpeg \
     - [ ] Cluster by attractor features.
     - [ ] Find out the relation the non-interesting generated attractors have with pixel density / exponents.
     - [ ] clusterby visual similarity
-    - [ ] find out a filter to discard non interesting attractors (besides lyapunov)
+    - [x] find out a filter to discard non interesting attractors (besides lyapunov)
 
 - colors:
-    -[ ] TODO IMPLEMENT THIS !! https://nicoguaro.github.io/posts/cyclic_colormaps/
+    -[x] TODO IMPLEMENT THIS !! https://nicoguaro.github.io/posts/cyclic_colormaps/
     - [ ] in the matplotlib colo0rmaps page theres info about how to create colormap categories, try that:
         https://matplotlib.org/stable/users/explain/colors/colormaps.html#miscellaneous
 
