@@ -2,7 +2,11 @@
 __pycache__
 *.pyc
 
+ignoreme_*
+
 *.png
+*.svg
+*.html
 *.jpg
 *.mp4
 *.txt

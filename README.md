@@ -217,6 +217,7 @@ ffmpeg \
     - [ ] find out a filter to discard non interesting attractors (besides lyapunov)
 
 - colors:
+    -[ ] TODO IMPLEMENT THIS !! https://nicoguaro.github.io/posts/cyclic_colormaps/
     - [ ] in the matplotlib colo0rmaps page theres info about how to create colormap categories, try that:
         https://matplotlib.org/stable/users/explain/colors/colormaps.html#miscellaneous
 
@@ -236,3 +237,5 @@ https://www.nathanselikoff.com/training/tutorial-strange-attractors-in-c-and-ope
 https://www3.fi.mdp.edu.ar/fc3/SisDin2009/Clase%202/nousado/CHAOSCOPE/help/en/manual/attractors.htm
 
 http://devmag.org.za/2012/07/29/how-to-choose-colours-procedurally-algorithms/
+
+https://nicoguaro.github.io/posts/cyclic_colormaps/
