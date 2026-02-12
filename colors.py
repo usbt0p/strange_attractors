@@ -161,6 +161,69 @@ def create_linear_colormap(colors: list[tuple]=None,
         finalcmap = recolor_colormap_base(finalcmap, **recolor_base)
     return finalcmap
 
+# from https://nicoguaro.github.io/posts/cyclic_colormaps/, slightly
+# modified to match my needs. the idea of using circles in 3d space is great
+def randomCyclicColormap(number, plot_results=False, deterministic=False):
+    '''Create `number` cyclic colormaps (a cyclic colormap starts and 
+    ends in the same color). Optionally plot results (in `.svg` and `.png`).'''
+    
+    if plot_results:
+        # to plot in a square grid, we'll want to find the nearest bigger square
+        nbsq = int(math.ceil(number**0.5))
+        nx, ny = nbsq, nbsq
+
+        fig, fig2 = plt.figure(), plt.figure()
+        azimuths, zeniths = np.arange(0, 361, 1), np.arange(30, 70, 1)
+        values = azimuths * np.ones((len(zeniths), len(azimuths)))
+
+    cmaps = []
+    for cont in range(number):
+        if deterministic: np.random.seed(seed=cont)
+
+        # we are working on a 3d space that represents the RGB space
+        mat = np.random.rand(3, 3)
+        # this is a matrix factorization. rot_mat is upper triang. and allows us to rotate in Z later
+        # https://math.stackexchange.com/questions/1141763/qr-decomposition-interpretation
+        rot_mat, _ = np.linalg.qr(mat)
+        
+        # set a random radius and center, ensure center doesn't go out of bounds from out cube
+        radius = np.random.uniform(0.1, 0.5)
+        center = np.random.uniform(radius, 1 - radius, size=(3, 1))
+        #center = np.clip(center, 0, 1)
+
+        # t is the angle in steps, x and y descirbe a circle in parametric coords in 2d
+        t = np.linspace(0, 2*np.pi, 256)
+        x = radius*np.cos(t)
+        y = radius*np.sin(t)
+        z = 0.0*np.cos(t) # this stays at zero
+        # now we stack vectors and rotate. whitout rotation Z dimension would stay constant
+        X = np.vstack((x, y, z))
+        X = rot_mat.dot(X) + center
+
+        # need transpose: (3, 256) -> (256, 3)
+        cmap = mcolors.LinearSegmentedColormap.from_list('my_colormap', X.T) 
+        cmaps.append(cmap)
+        
+        if plot_results:
+            # plotting stuff
+            ax = fig.add_subplot(ny, nx, 1 + cont, projection='polar') # polar makes plot a circle
+            ax.pcolormesh(azimuths*np.pi/180.0, zeniths, values, cmap=cmap, shading='auto') # ngl, idk what this does
+            ax.set_xticks([]); ax.set_yticks([])
+
+            # yada yada matplotlib 3d
+            ax2 = fig2.add_subplot(ny, nx, 1 + cont, projection='3d')
+            ax2.plot(X[0, :], X[1, :], X[2, :])
+            ax2.set_xlim(0, 1); ax2.set_ylim(0, 1); ax2.set_zlim(0, 1)
+            ax2.view_init(30, -60)
+            ax2.set_xticks([0, 0.5, 1.0]); ax2.set_yticks([0, 0.5, 1.0]); ax2.set_zticks([0, 0.5, 1.0])
+            ax2.set_xticklabels([]); ax2.set_yticklabels([]); ax2.set_zticklabels([])
+
+    if plot_results:
+        fig.savefig("random_cmaps.png", dpi=300, transparent=True)
+        fig2.savefig("random_cmaps_traj.svg", transparent=True)
+    
+    return cmaps
+
 
 if __name__ == "__main__":
     # test the create_linear_colormap function
@@ -180,8 +243,8 @@ if __name__ == "__main__":
     plt.axis('off')
     plt.savefig("test_colormap_positions_1.png", bbox_inches='tight', pad_inches=0)
 
-    positions = [0.0, 0.2, 1.0]
-    cmap = create_linear_colormap(colors=[(0,0,0), (2, 24, 107), (255, 145, 0)], positions=positions)
+    positions = [0.0, 0.4, 0.8, 1.0]
+    cmap = create_linear_colormap(colors=[(255,255,255), (2, 24, 107), (255, 145, 0), (255,255,255)], positions=positions)
     plt.imshow(gradient, aspect='auto', cmap=cmap)
     plt.axis('off')
     plt.savefig("test_colormap_positions_2.png", bbox_inches='tight', pad_inches=0)
@@ -190,3 +253,7 @@ if __name__ == "__main__":
     plt.imshow(gradient, aspect='auto', cmap=cmap2)
     plt.axis('off')
     plt.savefig("test_colormap2.png", bbox_inches='tight', pad_inches=0)
+
+    # test the randomCyclicColormap func with two numbers of cmaps
+    cmaps = randomCyclicColormap(7, plot_results=True)
+    cmaps = randomCyclicColormap(16, plot_results=True)
