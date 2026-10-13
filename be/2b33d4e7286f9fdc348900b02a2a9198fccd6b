@@ -1,0 +1,14 @@
+main.py
+  h_81c0abe17bcbc9 7-66
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "be2b33d4e7286f9fdc348900b02a2a9198fccd6b",
+  "prompts": {},
+  "humans": {
+    "h_81c0abe17bcbc9": {
+      "author": "Lucas Canle de Andres <lucascda@inditex.com>"
+    }
+  }
+}
