@@ -1,0 +1,16 @@
+attractor_video.py
+  h_81c0abe17bcbc9 21,164
+lyapunov_exponents.py
+  h_81c0abe17bcbc9 212,253,394,405
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "e36625f17a872c40306df82aab69eb0825fe53c4",
+  "prompts": {},
+  "humans": {
+    "h_81c0abe17bcbc9": {
+      "author": "Lucas Canle de Andres <lucascda@inditex.com>"
+    }
+  }
+}
