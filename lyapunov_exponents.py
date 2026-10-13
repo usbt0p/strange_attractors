@@ -209,6 +209,7 @@ def createAttractors(examples, iterations, out_path="output"):
                     width=500,
                     height=500,
                     dir=out_path,
+                    maxiterations=iterations,
                     interpolation=None,
                     background_color=(255, 255, 255),
                 )
@@ -249,7 +250,7 @@ def saveAttractor(name, path, equation, a, b, xmin, xmax, ymin, ymax, x_o, y_o, 
 
     suffix = 0
     while os.path.exists(os.path.join(
-        path, newname := f"{name}{"_" if str(name) else ""}{suffix}.json")):
+        path, newname := f"{name}{'_' if str(name) else ''}{suffix}.json")):
         suffix += 1
     with open(os.path.join(path, newname), "w") as f:
         json.dump(parameters, f, indent=4)
@@ -390,7 +391,7 @@ def drawAttractor(
     - if experiment_name is provided, it is used as a subdirectory and prefix for the filename
     - histogram mode ignores start and end colors, will always use bicubic interpolation
     - padding only works in histogram mode
-    """            
+    """
 
     def generateFilename(dir, experiment_name, name, interpolation, 
                          width, height, maxiterations, extension="png"):
@@ -401,7 +402,7 @@ def drawAttractor(
         # check if file exists and if so find a new name
         suffix = 0
         while os.path.exists(os.path.join(
-            dirpath, newname := f"{name}{"_" if str(name) else ""}{suffix}.{extension}")):
+            dirpath, newname := f"{name}{'_' if str(name) else ''}{suffix}.{extension}")):
             suffix += 1
         return os.path.join(dirpath, newname)
 
@@ -504,6 +505,3 @@ def compute_attractor_pixel_rate(image_path):
 
 if __name__ == "__main__":
     ...
-
-
-

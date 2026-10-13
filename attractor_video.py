@@ -18,7 +18,7 @@ def generateFilename(dir, experiment_name, name,
         # check if file exists and if so find a new name
         suffix = 0
         while os.path.exists(os.path.join(
-            dirpath, newname := f"{name}{"_" if str(name) else ""}{suffix}.{extension}")):
+            dirpath, newname := f"{name}{'_' if str(name) else ''}{suffix}.{extension}")):
             suffix += 1
         return os.path.join(dirpath, newname)
 
