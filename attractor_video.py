@@ -9,7 +9,7 @@ import cv2
 from tqdm import tqdm
 
 
-def generateFilename(dir, experiment_name, name, 
+def generateFilename(dir, experiment_name, name,
                          width, height, maxiterations, extension="png"):
         if not os.path.exists(dirpath := os.path.join(dir, experiment_name)):
             os.makedirs(dirpath) # ignoring experiment_name if empty is intentional
@@ -32,7 +32,7 @@ def videoAttractor(
     video_height=1080,  # Video resolution height
     background_color=None,
     dir="output",
-    experiment_name="", # throw all videos in a subfolder 
+    experiment_name="", # throw all videos in a subfolder
     cmap='magma',  # Colormap for histogram mode
     color_bias = 0.2, # limit of color release at start of video
     pad_size=20,
@@ -41,14 +41,14 @@ def videoAttractor(
     video_end_pad=0.0, # seconds of padding at the end
 ):
     """Create a video of an attractor being drawn point by point.
-    """            
+    """
 
     # Calculate total frames and points per frame
     total_frames = int(video_duration * fps)
     total_points = len(x)
     points_per_frame = max(1, total_points // total_frames)
     print(f"Generating video with {total_frames} frames, {points_per_frame} points per frame.")
-    
+
     # Normalize points to video coordinates taking pad_size into account
     int_pad = int(pad_size)
     eff_w = max(1, video_width - 2 * int_pad)
@@ -56,21 +56,21 @@ def videoAttractor(
 
     xs = (((np.array(x) - xmin) / (xmax - xmin)) * eff_w + int_pad).astype(int)
     ys = (((np.array(y) - ymin) / (ymax - ymin)) * eff_h + int_pad).astype(int)
-    
+
     # Clip coordinates to video bounds
     xs = np.clip(xs, 0, video_width - 1)
     ys = np.clip(ys, 0, video_height - 1)
-    
+
     # # Get colormap colors
     colormap = plt.colormaps[cmap]
-    
+
     # Generate video filename
     pth = generateFilename(dir, experiment_name, name, video_width, video_height, "", "mp4")
-    
+
     # Initialize video writer
     fourcc = cv2.VideoWriter_fourcc(*'mp4v')
     out = cv2.VideoWriter(pth, fourcc, fps, (video_width, video_height))
-    
+
     # Set background color
     if background_color:
         assert len(background_color) == 3 and \
@@ -78,7 +78,7 @@ def videoAttractor(
         bg_color = background_color
     else:
         bg_color = tuple(int(c * 255) for c in colormap(0.0)[:3])
-    
+
     # we'll track point density for coloring
     density_map = np.zeros((video_height, video_width), dtype=np.float32)
 
@@ -89,12 +89,12 @@ def videoAttractor(
         # new indexes of points
         start_idx = frame_idx * points_per_frame
         end_idx = min(start_idx + points_per_frame, total_points)
-        
+
         # use np.add.at to prevent loops
         curr_xs = xs[start_idx:end_idx]
         curr_ys = ys[start_idx:end_idx]
         np.add.at(density_map, (curr_ys, curr_xs), 1)
-        
+
         if np.max(density_map) > 0:
             # apply log density and normalize
             log_density = np.log1p(density_map)
@@ -103,12 +103,12 @@ def videoAttractor(
             # release color gradually as frames progress (linear interp)
             color_limit = color_bias + (1.0 - color_bias) * (frame_idx / total_frames)
             norm_density = np.clip(norm_density, 0.0, color_limit)
-            
+
             # opencv color format
-            colored_map = colormap(norm_density)[:, :, :3] 
+            colored_map = colormap(norm_density)[:, :, :3]
             colored_map = (colored_map * 255).astype(np.uint8)
             colored_map = cv2.cvtColor(colored_map, cv2.COLOR_RGB2BGR)
-            
+
             # mask the only drawn pixels
             mask = density_map > 0
             frame[mask] = colored_map[mask]
@@ -125,21 +125,21 @@ def videoAttractor(
 if __name__ == "__main__":
 
     from lyapunov_exponents import loadAttractor, generateAttractorFromParameters
-    
+
     RENDER_ITERATIONS = 200_000_000
 
     attractors = [15, 21, 1, 25, 13, 34]
     colors = ['viridis', 'afmhot', "binary", "gray", "twilight",
               "turbo", "BuPu", "YlGn", "YlOrRd", "Blues", "Reds", "Greens",
               "seismic", "Accent"]
-        
+
     for n in attractors:
         print(f"Processing attractor {n}...")
 
         params = loadAttractor(f"/home/usbt0p/Programs/strange_attractors/set_num/out/{n}_0.json")
         x, y, xmin, xmax, ymin, ymax = \
             generateAttractorFromParameters(params, RENDER_ITERATIONS)
-        
+
         print(f"Attractor {n} loaded and generated.")
 
         for color in colors:

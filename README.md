@@ -19,7 +19,7 @@ from lyapunov_exponents import createAttractor
 createAttractor(out_path="new_attractors/out", examples=100, iterations=10_000)
 
 # this will create 100 attractors and save their parameters in the specified folder, with
-# a small 500x500 image preview for each one. 
+# a small 500x500 image preview for each one.
 ```
 
 Render a specific attractor from its parameters:
@@ -39,10 +39,10 @@ render_kwargs = {
         "pad_size": 0.5
     }
 
-draw_single_attractor("new_attractors/out/attractor_0.json", 
+draw_single_attractor("new_attractors/out/attractor_0.json",
                        render_iterations=20_000_000,
                        **render_kwargs)
-``` 
+```
 
 Render multiple attractors in parallel:
 ```python
@@ -55,15 +55,15 @@ RENDER_ITERS = 20_000_000 # this is a big amount but gives good quality renders
 render_kwargs = {
         "width": 1000,
         "height": 1000,
-        "cmap": create_linear_colormap(preset='viridis', 
-            # this makes the background color white 
+        "cmap": create_linear_colormap(preset='viridis',
+            # this makes the background color white
             recolor_base={'n':1, 'color':(255,255,255)}),
         "dir": "new_attractors/renders",
         "interpolation": "histogram",
         "pad_size": 0.5
     }
 
-render_attractors_in_parallel(glob.glob("new_attractors/out/*.json"), 
+render_attractors_in_parallel(glob.glob("new_attractors/out/*.json"),
                               RENDER_ITERS,
                               num_workers=cpu_count(),
                               batch_size=50, # set this lower if you have less memory
@@ -94,20 +94,20 @@ render_kwargs = {
 # find EXAMPLES random attractors with CREATE_ITERATIONS iters for each one
 createAttractor(out_path=f"{base_dir}/out", examples=EXAMPLES, iterations=CREATE_ITERATIONS)
 
-cmaps = ['plasma', 'magma', 'viridis', 'cividis', 
+cmaps = ['plasma', 'magma', 'viridis', 'cividis',
             'turbo', 'summer', 'autumn', 'winter', 'copper']
 # define a recoloring scheme to make the background white
 recolor = {'n':1, 'color':(255,255,255), 'resample_size':512}
 
 for cmap_name in cmaps:
     print(f"Rendering with colormap {cmap_name}...")
-    render_kwargs['cmap'] = create_linear_colormap(preset=cmap_name, 
+    render_kwargs['cmap'] = create_linear_colormap(preset=cmap_name,
                                                     recolor_base=recolor)
 
     # rendering multiple attracctor is a perfect task for multiprocessing! cpu go brr
     results = draw_attractors_in_parallel(
-        glob.glob(f"{base_dir}/out/*.json"), 
-        RENDER_ITERATIONS, 
+        glob.glob(f"{base_dir}/out/*.json"),
+        RENDER_ITERATIONS,
         n_processes=cpu_count() - 4, # leave some CPU for other tasks
         batch_size=50,
         **render_kwargs
@@ -117,8 +117,8 @@ for cmap_name in cmaps:
 render_kwargs['cmap'] = create_linear_colormap(colors=[(255, 0, 0),(0, 255, 0)] ,
                                                 recolor_base=recolor)
 results = draw_attractors_in_parallel(
-        glob.glob(f"{base_dir}/out/*.json"), 
-        RENDER_ITERATIONS, 
+        glob.glob(f"{base_dir}/out/*.json"),
+        RENDER_ITERATIONS,
         n_processes=cpu_count() - 4, # leave some CPU for other tasks
         batch_size=50,
         **render_kwargs
@@ -132,21 +132,21 @@ An example of its usage:
 
 ```python
 from lyapunov_exponents import loadAttractor, generateAttractorFromParameters
-    
+
     RENDER_ITERATIONS = 200_000_000
 
     attractors = [15, 21, 1, 25, 13, 34]
     colors = ['viridis', 'afmhot', "binary", "gray", "twilight",
               "turbo", "BuPu", "YlGn", "YlOrRd", "Blues", "Reds", "Greens",
               "seismic", "Accent"]
-        
+
     for n in attractors:
         print(f"Processing attractor {n}...")
 
         params = loadAttractor(f"examples/out/{n}_0.json")
         x, y, xmin, xmax, ymin, ymax = \
             generateAttractorFromParameters(params, RENDER_ITERATIONS)
-        
+
         print(f"Attractor {n} loaded and generated.")
 
         for color in colors:
@@ -188,7 +188,7 @@ ffmpeg \
   out.gif
 ```
 
-## TODO Some ideas to try 
+## TODO Some ideas to try
 - [x] separate plotting and point generation in the drawing code.
 - [ ] refactor the generateFilename function to be used by all
 - [ ] PRIORITY: in the createAttractors function, ensure the number created is one with FILTERED pixel density! no default shitty attractors
