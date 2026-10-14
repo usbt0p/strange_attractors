@@ -1,16 +1,16 @@
 from parallel import draw_attractors_in_parallel, draw_single_attractor
 from colors import create_linear_colormap, randomCyclicColormap
 from lyapunov_exponents import compute_attractor_pixel_rate, createAttractors
-from equations import EQUATIONS
+from equations import Equation
 
 import os; import glob
 
 CREATE_ITERATIONS = 100_000
 EXAMPLES = 100
-RENDER_ITERATIONS = 200_000_000 # long processing but good rendering
+RENDER_ITERATIONS = 100_000_000 # long processing but good rendering
 
 def main():
-    base_dir = "imgs/test_multieq_trig"
+    base_dir = "imgs/test"
 
     render_kwargs = {
         "width": 1080,
@@ -26,7 +26,7 @@ def main():
     createAttractors(out_path=f"{base_dir}/out",
                      examples=EXAMPLES,
                      iterations=CREATE_ITERATIONS,
-                     equation=EQUATIONS["trig"])
+                     equation=Equation("abs"))
     input_files = glob.glob(f"{base_dir}/out/*.json")
 
     cmaps = ["binary", "gray", "twilight", "hot", "magma", "ocean"]

@@ -44,6 +44,17 @@ draw_single_attractor("new_attractors/out/attractor_0.json",
                        **render_kwargs)
 ```
 
+You can easily specify equation types using the `Equation` class, which currently supports three type of attractor equations; trigonometric, absolute value and quadratic.
+```python
+createAttractors(
+    out_path=f"{base_dir}/out",
+    examples=EXAMPLES,
+    iterations=CREATE_ITERATIONS,
+    # specify your equation here
+    equation=Equation("abs", coef_bounds=(-1.0, 1.0)),
+)
+```
+
 Render multiple attractors in parallel:
 ```python
 from parallel import render_attractors_in_parallel
@@ -74,6 +85,7 @@ Whole pipeline example: create multiple attractors, and render them in parallel 
 ```python
 from parallel import draw_attractors_in_parallel, draw_single_attractor
 from colors import create_linear_colormap
+from equations import Equation
 
 CREATE_ITERATIONS = 100_000
 EXAMPLES = 100
@@ -92,7 +104,12 @@ render_kwargs = {
 #logging.basicConfig(level=logging.INFO)
 
 # find EXAMPLES random attractors with CREATE_ITERATIONS iters for each one
-createAttractor(out_path=f"{base_dir}/out", examples=EXAMPLES, iterations=CREATE_ITERATIONS)
+createAttractor(
+    out_path=f"{base_dir}/out",
+    examples=EXAMPLES,
+    iterations=CREATE_ITERATIONS,
+    equation=Equation("quadratic"),
+)
 
 cmaps = ['plasma', 'magma', 'viridis', 'cividis',
             'turbo', 'summer', 'autumn', 'winter', 'copper']
@@ -143,6 +160,7 @@ from lyapunov_exponents import loadAttractor, generateAttractorFromParameters
     for n in attractors:
         print(f"Processing attractor {n}...")
 
+        # loading pulls info from the metadata JSON to save you from configuration
         params = loadAttractor(f"examples/out/{n}_0.json")
         x, y, xmin, xmax, ymin, ymax = \
             generateAttractorFromParameters(params, RENDER_ITERATIONS)
@@ -186,6 +204,29 @@ ffmpeg \
   # this filter pipeline removes dithering-like artifacts of scaling
   -vf "scale=512:-1,split[s0][s1];[s0]palettegen[p];[s1][p]paletteuse" \
   out.gif
+```
+---
+
+When generating with different equations, you'll notice big differences between some operations, specialy trig operations like `np.sin` or `np.cos`. Take this into account when doing big runs. You can test this with the following sample code:
+
+```python
+import time, numpy as np
+from equations import Equation
+from lyapunov_exponents import compute_attractor_core
+
+for name in ("abs", "trig", "quadratic"):
+    eq = Equation(name)
+    a, b = eq.random_coefs()
+    compute_attractor_core(eq.step, a, b, 0.1, 0.1, 100)  # warm-up / compile
+    t = time.perf_counter()
+    compute_attractor_core(eq.step, a, b, 0.1, 0.1, 200_000_000)
+    print(name, time.perf_counter() - t)
+```
+Results:
+```bash
+abs 0.6626970419965801
+trig 3.0719616249989485
+quadratic 0.7880107910023071
 ```
 
 ## TODO Some ideas to try

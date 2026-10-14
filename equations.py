@@ -9,19 +9,33 @@ class Equation:
     An attractor map specification:
         name: identifier saved in the JSON files
         step: @numba.njit function (prev_x, prev_y, a, b) -> (x, y)
-        n_coefs: number of coefficients for each of the x and y equations
         coef_bounds: (low, high) bounds for the random coefficients
     '''
-    def __init__(self, name: str, step : callable, n_coefs: int, coef_bounds: tuple = (-3.0, 3.0)):
+
+    def __init__(self, name: str, coef_bounds: tuple = (-3.0, 3.0)):
         self.name = name
-        self.step = step
-        self.n_coefs = n_coefs
         self.coef_bounds = coef_bounds
+
+        match self.name:
+            case "abs":
+                self.step = abs_step
+                self.n_coefs = 5
+            case "quadratic":
+                self.step = quadratic_step
+                self.n_coefs = 6
+            case "trig":
+                self.step = trig_step
+                self.n_coefs = 5
+            case _:
+                raise ValueError(f"Unknown equation: {self.name}")
 
     def random_coefs(self):
         lo, hi = self.coef_bounds
         return (np.random.uniform(lo, hi, self.n_coefs),
                 np.random.uniform(lo, hi, self.n_coefs))
+
+    def step(self, px, py, a, b): # just a wrapper so that calls are for a method
+        return self.step(px, py, a, b)
 
 # TODO will cache=True help speed??
 @numba.njit(fastmath=True)
@@ -41,12 +55,5 @@ def quadratic_step(px, py, a, b):
 
 @numba.njit(fastmath=True)
 def trig_step(px, py, a, b):
-    return (a[0] + a[1]*math.sin(a[2]*py) + a[3]*math.cos(a[4]*px),
-            b[0] + b[1]*math.sin(b[2]*px) + b[3]*math.cos(b[4]*py))
-
-
-EQUATIONS = {
-    "abs": Equation("abs", abs_step, 5),
-    "quadratic": Equation("quadratic", quadratic_step, 6, (-1.2, 1.2)),
-    "trig": Equation("trig", trig_step, 5),
-}
+    return (a[0] + a[1]*np.sin(a[2]*py) + a[3]*np.cos(a[4]*px),
+            b[0] + b[1]*np.sin(b[2]*px) + b[3]*np.cos(b[4]*py))

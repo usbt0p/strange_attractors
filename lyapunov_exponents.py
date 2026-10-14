@@ -13,7 +13,7 @@ from PIL import Image, ImageDraw
 from scipy.ndimage import gaussian_filter
 from tqdm import tqdm
 
-from equations import EQUATIONS, Equation
+from equations import Equation
 
 @numba.njit(fastmath=True)
 def compute_lyapunov(step, a, b, iterations, discard=1000):
@@ -134,12 +134,19 @@ def compute_lyapunov(step, a, b, iterations, discard=1000):
 
     return lyapunov, drawit, x, y, a, b, xmin, xmax, ymin, ymax
 
-def createAttractors(examples, iterations, out_path="output", equation: Equation = EQUATIONS["abs"]):
+def createAttractors(
+    examples : int,
+    iterations : int,
+    out_path : str,
+    equation: Equation
+):
     '''Create strange attractors and save them as images and JSON files.
     If you want more insights into the algorithm:
     https://pmc.ncbi.nlm.nih.gov/articles/PMC7512692/#sec3-entropy-20-00175
     https://paulbourke.net/fractals/lyapunov/
     '''
+
+    assert out_path is not None and out_path != "", "Output path must be specified"
 
     # by default create output directory and attr_number.txt if not exists
     if not os.path.exists(f"{out_path}/attr_number.txt"):
@@ -216,6 +223,7 @@ def saveAttractor(name, path, equation, a, b, xmin, xmax, ymin, ymax, x_o, y_o, 
 
     # Save the parameters in JSON format
     parameters = {
+    # TODO consider adding bounds to the metadata
         "equation": equation,
         "bounds": {
             "xmin": xmin,
@@ -263,6 +271,9 @@ def compute_attractor_core(step, a, b, x0, y0, iters):
 def generateAttractorFromParameters(params, iters):
     '''Interface to generate attractor points from loaded parameters.'''
 
+    equation = Equation(params["equation"])
+    # TODO consider adding bounds to the metadata
+
     # ensure numpy for numba
     a = np.array(params["coefficients"]["a"], dtype=np.float64)
     b = np.array(params["coefficients"]["b"], dtype=np.float64)
@@ -274,7 +285,6 @@ def generateAttractorFromParameters(params, iters):
     x0 = params["seed_point"]["x"]
     y0 = params["seed_point"]["y"]
 
-    equation = EQUATIONS[params.get("equation")]
     x, y = compute_attractor_core(equation.step, a, b, x0, y0, iters)
 
     logging.info("Attractor generated from parameters.")
