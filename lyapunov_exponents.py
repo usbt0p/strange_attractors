@@ -13,31 +13,25 @@ from PIL import Image, ImageDraw
 from scipy.ndimage import gaussian_filter
 from tqdm import tqdm
 
+from equations import EQUATIONS, Equation
+
 @numba.njit(fastmath=True)
-def compute_lyapunov(iterations, discard=1000):
-    """Compute the Lyapunov exponent of the attractor defined by coefficients a and b.
-    a and b are arrays of coefficients, x0 and y0 are the seed points.
+def compute_lyapunov(step, a, b, iterations, discard=1000):
+    """Compute the Lyapunov exponent of the attractor defined by step and coefficients a and b.
 
     Args:
+        step: jitted map function (prev_x, prev_y, a, b) -> (x, y)
+        a, b: arrays of coefficients for the x and y equations
         iterations: iterations to use when calculating the attractor
         discard: number of initial iterations to discard for transient behavior.
     """
-    # random coefficients
-    ax = np.array([np.random.uniform(-3.0, 3.0) for _ in range(5)])
-    ay = np.array([np.random.uniform(-3.0, 3.0) for _ in range(5)])
-
-    # cache coefficients in local variables for speed (cpu registers)
-    ax0, ax1, ax2, ax3, ax4 = ax[0], ax[1], ax[2], ax[3], ax[4]
-    ay0, ay1, ay2, ay3, ay4 = ay[0], ay[1], ay[2], ay[3], ay[4]
 
     # This is the initial point, it will serve as the seed for the series
     # Even though the series is chaotic, it is deterministic
     x_val = np.random.uniform(-0.5, 0.5)
     y_val = np.random.uniform(-0.5, 0.5)
 
-    # Usamos listas, que son eficientes para "Early Exit" (si el atractor falla rápido)
-    x = [x_val]
-    y = [y_val]
+    x, y = [x_val], [y_val]
 
     # min and max bounds
     xmin = 1e32
@@ -70,23 +64,14 @@ def compute_lyapunov(iterations, discard=1000):
     # Calculate the attractor
     for i in range(1, iterations): # start at 1 to avoid using x[-1]
 
-        # Calculate next term
-        # direct multiplication is theoretically faster than pow
-
-        x_i = ax0 + ax1*prev_x + ax2*prev_y + abs(ax3*prev_x) + abs(ax4*prev_y)
-        y_i = ay0 + ay1*prev_x + ay2*prev_y + abs(ay3*prev_x) + abs(ay4*prev_y)
-        #y_i = ay0 + ay1*prev_x + ay2*prev_x_sq + ay3*xy_term + ay4*prev_y + ay5*prev_y_sq
+        x_i, y_i = step(prev_x, prev_y, a, b)
 
         x.append(x_i)
         y.append(y_i)
 
         # this represents a nearby point, but slightly separated, on another orbit
         # we'll use this to calculate the lyapunov exponent
-        xe_sq = xe * xe
-        ye_sq = ye * ye
-        xeye = xe * ye
-        xenew = ax0 + ax1*xe + ax2*xe_sq + abs(ax3*xeye) + abs(ax4*ye)
-        yenew = ay0 + ay1*xe + ay2*xe_sq + abs(ay3*xeye) + abs(ay4*ye)
+        xenew, yenew = step(xe, ye, a, b)
 
         # Update the bounds
         # if is faster than min/max functions
@@ -147,9 +132,9 @@ def compute_lyapunov(iterations, discard=1000):
         # lyapunov /= (MAXITERATIONS - 1000) # normalize
         # and what about T?
 
-    return lyapunov, drawit, x, y, ax, ay, xmin, xmax, ymin, ymax
+    return lyapunov, drawit, x, y, a, b, xmin, xmax, ymin, ymax
 
-def createAttractors(examples, iterations, out_path="output"):
+def createAttractors(examples, iterations, out_path="output", equation: Equation = EQUATIONS["abs"]):
     '''Create strange attractors and save them as images and JSON files.
     If you want more insights into the algorithm:
     https://pmc.ncbi.nlm.nih.gov/articles/PMC7512692/#sec3-entropy-20-00175
@@ -172,8 +157,9 @@ def createAttractors(examples, iterations, out_path="output"):
     try: # catch keyboard interrupt to save progress
         while count < examples:
 
+            a, b = equation.random_coefs()
             lyapunov, drawit, x, y, ax, ay, xmin, xmax, ymin, ymax = compute_lyapunov(
-                iterations=iterations, discard=1000,
+                equation.step, a, b, iterations, 1000,
             )
 
             # Classify the series according to lyapunov
@@ -194,7 +180,7 @@ def createAttractors(examples, iterations, out_path="output"):
                 saveAttractor(
                     file_index,
                     out_path,
-                    None,
+                    equation.name,
                     ax, ay,
                     xmin, xmax,
                     ymin, ymax,
@@ -261,9 +247,9 @@ def loadAttractor(pathname):
     return parameters
 
 @numba.njit(fastmath=True)
-def compute_attractor_core(a, b, x0, y0, iters):
+def compute_attractor_core(step, a, b, x0, y0, iters):
     """Core function to compute the attractor points using Numba for speed.
-    a and b are arrays of coefficients, x0 and y0 are the seed points."""
+    step is the jitted map, a and b are arrays of coefficients, x0 and y0 are the seed points."""
     # preallocate memory
     x = np.zeros(iters)
     y = np.zeros(iters)
@@ -271,10 +257,7 @@ def compute_attractor_core(a, b, x0, y0, iters):
     y[0] = y0
 
     for i in range(1, iters):
-        prev_x = x[i-1]
-        prev_y = y[i-1]
-        x[i] = a[0] + a[1]*prev_x + a[2]*prev_y + abs(a[3]*prev_x) + abs(a[4]*prev_y)
-        y[i] = b[0] + b[1]*prev_x + b[2]*prev_y + abs(b[3]*prev_x) + abs(b[4]*prev_y)
+        x[i], y[i] = step(x[i-1], y[i-1], a, b)
     return x, y
 
 def generateAttractorFromParameters(params, iters):
@@ -291,7 +274,8 @@ def generateAttractorFromParameters(params, iters):
     x0 = params["seed_point"]["x"]
     y0 = params["seed_point"]["y"]
 
-    x, y = compute_attractor_core(a, b, x0, y0, iters)
+    equation = EQUATIONS[params.get("equation")]
+    x, y = compute_attractor_core(equation.step, a, b, x0, y0, iters)
 
     logging.info("Attractor generated from parameters.")
     return x, y, xmin, xmax, ymin, ymax
@@ -332,7 +316,7 @@ def computeDensity(
     width, height,
     density_sigma=0,
 ):
-    """Compute the log-density histogram of the attractor points (Optimized)."""
+    """Compute the log-density histogram of the attractor points."""
 
     x_arr = np.asarray(x)
     y_arr = np.asarray(y)

@@ -1,15 +1,16 @@
 from parallel import draw_attractors_in_parallel, draw_single_attractor
 from colors import create_linear_colormap, randomCyclicColormap
 from lyapunov_exponents import compute_attractor_pixel_rate, createAttractors
+from equations import EQUATIONS
 
-import os; from tqdm import tqdm; import glob
+import os; import glob
 
-CREATE_ITERATIONS = 10_000
-EXAMPLES = 20
-RENDER_ITERATIONS = 1_000_000 # long processing but good rendering
+CREATE_ITERATIONS = 100_000
+EXAMPLES = 100
+RENDER_ITERATIONS = 200_000_000 # long processing but good rendering
 
 def main():
-    base_dir = "imgs"
+    base_dir = "imgs/test_multieq_trig"
 
     render_kwargs = {
         "width": 1080,
@@ -22,10 +23,13 @@ def main():
 
     # TODO parallelize this too
     # find EXAMPLES random attractors with CREATE_ITERATIONS iters for each one
-    createAttractors(out_path=f"{base_dir}/out", examples=EXAMPLES, iterations=CREATE_ITERATIONS)
+    createAttractors(out_path=f"{base_dir}/out",
+                     examples=EXAMPLES,
+                     iterations=CREATE_ITERATIONS,
+                     equation=EQUATIONS["trig"])
     input_files = glob.glob(f"{base_dir}/out/*.json")
 
-    cmaps = ["binary", "gray", "twilight", "twilight_shifted", "magma"]
+    cmaps = ["binary", "gray", "twilight", "hot", "magma", "ocean"]
 
     #cmaps = randomCyclicColormap(5)
     #cmaps.append('magma')
@@ -42,7 +46,7 @@ def main():
     assert len(input_files) > len(files) > 0
     print("Filtered: ", f'{len(input_files)=}, {len(files)=}')
 
-    os.makedirs(render_kwargs['dir'], exist_ok=True)
+    os.makedirs(render_kwargs['dir'], exist_ok=True) # TODO move this out of main
     print(f"Rendering directory: {render_kwargs['dir']}")
 
     for cmap_name in cmaps:
