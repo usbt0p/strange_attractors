@@ -1,0 +1,18 @@
+equations.py
+  h_81c0abe17bcbc9 1-52
+lyapunov_exponents.py
+  h_81c0abe17bcbc9 16-17,19-20,23-24,34,67,74,135,137,160,162,183,250,252,260,277-278,319
+main.py
+  h_81c0abe17bcbc9 4,6,8-10,13,26-29,32,49
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "659265b7f39dc94a1b04a13c3c85d504ab318424",
+  "prompts": {},
+  "humans": {
+    "h_81c0abe17bcbc9": {
+      "author": "Lucas Canle de Andres <lucascda@inditex.com>"
+    }
+  }
+}
