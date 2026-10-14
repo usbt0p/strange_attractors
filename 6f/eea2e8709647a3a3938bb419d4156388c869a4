@@ -1,0 +1,19 @@
+config.py
+  s_06d685ca02e457::t_c730d9a8b92b9f 1-52
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "6feea2e8709647a3a3938bb419d4156388c869a4",
+  "prompts": {},
+  "sessions": {
+    "s_06d685ca02e457": {
+      "agent_id": {
+        "tool": "github-copilot",
+        "id": "ba138936-721e-46da-8b4a-3e8d4f3e4076",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Lucas Canle de Andres <lucascda@inditex.com>"
+    }
+  }
+}
