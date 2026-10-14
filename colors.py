@@ -15,16 +15,16 @@ def colorInterpolate(color1, color2, t, mode='linear') -> tuple[int, int, int]:
     """
     match mode:
         case 'lin': pass  # t is already linear
-        case 'log': t = math.log(t * (math.e - 1) + 1)  
+        case 'log': t = math.log(t * (math.e - 1) + 1)
         case 'exp': t = (math.exp(t) - 1) / (math.e - 1)
-        case 'cos': t = (1 - math.cos(math.pi * t)) / 2 
+        case 'cos': t = (1 - math.cos(math.pi * t)) / 2
         case 'bicubic': t = t * t * (3 - 2 * t)  # smoothstep
         case _: pass  # default to linear if unknown mode
 
     r = int(color1[0] + t * (color2[0] - color1[0]))
     g = int(color1[1] + t * (color2[1] - color1[1]))
     b = int(color1[2] + t * (color2[2] - color1[2]))
-    
+
     return (r, g, b)
 
 def randomComplementaryColors(lbound=0, ubound=255):
@@ -44,7 +44,7 @@ def randomComplementaryColors(lbound=0, ubound=255):
     comp_b = max(lbound, min(ubound, comp_b))
 
     return (r, g, b), (comp_r, comp_g, comp_b)
-    
+
 def randomTriadColors(lbound=0, ubound=255, three_colors=True):
     '''Options allow to return either three or two triadic colors.'''
     r = random.randint(lbound, ubound)
@@ -91,7 +91,7 @@ def randomColoursGoldenRatio(lbound=0, ubound=255, n=2):
         golden_r = lbound + int(((r - lbound) * phi) % span)
         golden_g = lbound + int(((g - lbound) * phi) % span)
         golden_b = lbound + int(((b - lbound) * phi) % span)
-        
+
         colors.append((golden_r, golden_g, golden_b))
         r, g, b = golden_r, golden_g, golden_b
 
@@ -115,17 +115,17 @@ def recolor_colormap_base(cmap, n=1, color=(0, 0, 0), resample_size=256) -> mcol
     newcolors[:n, :] = color
     return mcolors.ListedColormap(newcolors)
 
-def create_linear_colormap(colors: list[tuple]=None, 
-                           positions: list[float]=None, 
-                           name='custom_cmap', 
-                           preset: str=None, 
+def create_linear_colormap(colors: list[tuple]=None,
+                           positions: list[float]=None,
+                           name='custom_cmap',
+                           preset: str=None,
                            recolor_base : dict = None #{'n':1, 'color':(0,0,0)}
                            ) -> mcolors.LinearSegmentedColormap:
     """
     Create a custom linear colormap or use a preset colormap from matplotlib.
     The positions must sum up to 1.0 and allow to define where each color is placed in the gradient.
     This is useful to create smooth color gradients for rendering attractors using plt.imshow.
-    
+
     Recolor base allows to modify the first n colors of the colormap to a specific color.
     For example: `{'n':1, 'color':(0,0,0), resample_size:256}` will set the first color to black.
 
@@ -137,13 +137,13 @@ def create_linear_colormap(colors: list[tuple]=None,
             return recolor_colormap_base(plt.get_cmap(preset), **recolor_base)
         else:
             return plt.get_cmap(preset)
-    
+
     if colors is None and preset is None: # default colormap
         if recolor_base:
             return recolor_colormap_base(plt.get_cmap('magma'), **recolor_base)
         else:
-            return plt.get_cmap('magma')  
-    
+            return plt.get_cmap('magma')
+
     if colors:
         assert all(isinstance(c, tuple) and len(c) == 3 for c in colors), "Colors must be tuples of (R, G, B)"
         colors = [(r/255, g/255, b/255) for r, g, b in colors]
@@ -155,7 +155,7 @@ def create_linear_colormap(colors: list[tuple]=None,
 
     if len(colors) != len(positions):
         raise ValueError("Colors and positions must have the same length")
-    
+
     finalcmap = mcolors.LinearSegmentedColormap.from_list(name, list(zip(positions, colors)))
     if recolor_base:
         finalcmap = recolor_colormap_base(finalcmap, **recolor_base)
@@ -164,9 +164,9 @@ def create_linear_colormap(colors: list[tuple]=None,
 # from https://nicoguaro.github.io/posts/cyclic_colormaps/, slightly
 # modified to match my needs. the idea of using circles in 3d space is great
 def randomCyclicColormap(number, plot_results=False, deterministic=False):
-    '''Create `number` cyclic colormaps (a cyclic colormap starts and 
+    '''Create `number` cyclic colormaps (a cyclic colormap starts and
     ends in the same color). Optionally plot results (in `.svg` and `.png`).'''
-    
+
     if plot_results:
         # to plot in a square grid, we'll want to find the nearest bigger square
         nbsq = int(math.ceil(number**0.5))
@@ -185,7 +185,7 @@ def randomCyclicColormap(number, plot_results=False, deterministic=False):
         # this is a matrix factorization. rot_mat is upper triang. and allows us to rotate in Z later
         # https://math.stackexchange.com/questions/1141763/qr-decomposition-interpretation
         rot_mat, _ = np.linalg.qr(mat)
-        
+
         # set a random radius and center, ensure center doesn't go out of bounds from out cube
         radius = np.random.uniform(0.1, 0.5)
         center = np.random.uniform(radius, 1 - radius, size=(3, 1))
@@ -201,9 +201,9 @@ def randomCyclicColormap(number, plot_results=False, deterministic=False):
         X = rot_mat.dot(X) + center
 
         # need transpose: (3, 256) -> (256, 3)
-        cmap = mcolors.LinearSegmentedColormap.from_list('my_colormap', X.T) 
+        cmap = mcolors.LinearSegmentedColormap.from_list('my_colormap', X.T)
         cmaps.append(cmap)
-        
+
         if plot_results:
             # plotting stuff
             ax = fig.add_subplot(ny, nx, 1 + cont, projection='polar') # polar makes plot a circle
@@ -221,16 +221,16 @@ def randomCyclicColormap(number, plot_results=False, deterministic=False):
     if plot_results:
         fig.savefig("random_cmaps.png", dpi=300, transparent=True)
         fig2.savefig("random_cmaps_traj.svg", transparent=True)
-    
+
     return cmaps
 
 
 if __name__ == "__main__":
     # test the create_linear_colormap function
-    
+
     gradient = np.linspace(0, 1, 256)
     gradient = np.vstack((gradient, gradient))
-    
+
     # you wont see it but the first color is black by default
     cmap = create_linear_colormap(colors=[(255, 0, 0), (0, 255, 0)])
     plt.imshow(gradient, aspect='auto', cmap=cmap)

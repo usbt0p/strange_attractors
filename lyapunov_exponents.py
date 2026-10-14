@@ -13,39 +13,33 @@ from PIL import Image, ImageDraw
 from scipy.ndimage import gaussian_filter
 from tqdm import tqdm
 
+from equations import Equation
+
 @numba.njit(fastmath=True)
-def compute_lyapunov(iterations, discard=1000):
-    """Compute the Lyapunov exponent of the attractor defined by coefficients a and b.
-    a and b are arrays of coefficients, x0 and y0 are the seed points.
-    
+def compute_lyapunov(step, a, b, iterations, discard=1000):
+    """Compute the Lyapunov exponent of the attractor defined by step and coefficients a and b.
+
     Args:
+        step: jitted map function (prev_x, prev_y, a, b) -> (x, y)
+        a, b: arrays of coefficients for the x and y equations
         iterations: iterations to use when calculating the attractor
         discard: number of initial iterations to discard for transient behavior.
     """
-    # random coefficients
-    ax = np.array([np.random.uniform(-3.0, 3.0) for _ in range(5)])
-    ay = np.array([np.random.uniform(-3.0, 3.0) for _ in range(5)])
-    
-    # cache coefficients in local variables for speed (cpu registers)
-    ax0, ax1, ax2, ax3, ax4 = ax[0], ax[1], ax[2], ax[3], ax[4]
-    ay0, ay1, ay2, ay3, ay4 = ay[0], ay[1], ay[2], ay[3], ay[4]
 
     # This is the initial point, it will serve as the seed for the series
     # Even though the series is chaotic, it is deterministic
     x_val = np.random.uniform(-0.5, 0.5)
     y_val = np.random.uniform(-0.5, 0.5)
-    
-    # Usamos listas, que son eficientes para "Early Exit" (si el atractor falla rápido)
-    x = [x_val]
-    y = [y_val]
+
+    x, y = [x_val], [y_val]
 
     # min and max bounds
     xmin = 1e32
     ymin = 1e32
     xmax = -1e32
     ymax = -1e32
-    lyapunov = 0.0     
-    
+    lyapunov = 0.0
+
     # calculate the initial separation between two nearby points and ensure it's not zero
     d0 = -1.0
     while d0 <= 0: # until the points are not identical
@@ -56,37 +50,28 @@ def compute_lyapunov(iterations, discard=1000):
         # they are the vector between the seed and the perturbed point
         dx = x_val - xe
         dy = y_val - ye
-        # this is just the distance of the previous vector, 
+        # this is just the distance of the previous vector,
         # a theoretical infinitesimal that will be used to renormalize the
         # distance between the two points after each iteration
         d0 = math.sqrt(dx * dx + dy * dy) # (epsilon in Bennetin method)
 
     drawit = True
-    
+
     # keep previous value to avoid acessing list
     prev_x = x_val
     prev_y = y_val
 
     # Calculate the attractor
     for i in range(1, iterations): # start at 1 to avoid using x[-1]
-        
-        # Calculate next term
-        # direct multiplication is theoretically faster than pow
 
-        x_i = ax0 + ax1*prev_x + ax2*prev_y + abs(ax3*prev_x) + abs(ax4*prev_y)
-        y_i = ay0 + ay1*prev_x + ay2*prev_y + abs(ay3*prev_x) + abs(ay4*prev_y)
-        #y_i = ay0 + ay1*prev_x + ay2*prev_x_sq + ay3*xy_term + ay4*prev_y + ay5*prev_y_sq
+        x_i, y_i = step(prev_x, prev_y, a, b)
 
         x.append(x_i)
         y.append(y_i)
-        
+
         # this represents a nearby point, but slightly separated, on another orbit
         # we'll use this to calculate the lyapunov exponent
-        xe_sq = xe * xe
-        ye_sq = ye * ye
-        xeye = xe * ye
-        xenew = ax0 + ax1*xe + ax2*xe_sq + abs(ax3*xeye) + abs(ax4*ye)
-        yenew = ay0 + ay1*xe + ay2*xe_sq + abs(ay3*xeye) + abs(ay4*ye)
+        xenew, yenew = step(xe, ye, a, b)
 
         # Update the bounds
         # if is faster than min/max functions
@@ -101,14 +86,14 @@ def compute_lyapunov(iterations, discard=1000):
             #logging.info("infinite attractor")
             break
 
-        # if the vector between current and prev point is too small, 
+        # if the vector between current and prev point is too small,
         # the series will tend to a point
         if abs(x_i - prev_x) < 1e-10 and abs(y_i - prev_y) < 1e-10:
             drawit = False
             #logging.info("point attractor")
             break
 
-        # Calculate the lyapunov exponents using 
+        # Calculate the lyapunov exponents using
         # we ignore the first iters to allow the series to settle down into a pattern
         if i > discard:
             # this approach of approximating the lyapunov exponent is called the Bennetin method
@@ -118,18 +103,18 @@ def compute_lyapunov(iterations, discard=1000):
             # our perturbed point (xenew, yenew)
             dx = x_i - xenew
             dy = y_i - yenew
-            
+
             dd_sq = dx * dx + dy * dy
             # prevent collapse due to identical points
             if dd_sq < 1e-30:
                 drawit = False
                 break
-                
+
             dd = math.sqrt(dd_sq) # compute the distance between the norm
-            
+
             # add the log of the ratio between the two current point's distances and the initial infinitesimal distance
             lyapunov += math.log(dd / d0)
-            
+
             # renormalize the perturbed point to be d0 away from the current point (to avoid overflow or underflow of the value)
             scaler = d0 / dd
             xe = x_i + dx * scaler
@@ -145,16 +130,23 @@ def compute_lyapunov(iterations, discard=1000):
 
         # TODO check for correctness of lyapunov normalization
         # lyapunov /= (MAXITERATIONS - 1000) # normalize
-        # and what about T? 
+        # and what about T?
 
-    return lyapunov, drawit, x, y, ax, ay, xmin, xmax, ymin, ymax
+    return lyapunov, drawit, x, y, a, b, xmin, xmax, ymin, ymax
 
-def createAttractors(examples, iterations, out_path="output"):
+def createAttractors(
+    examples : int,
+    iterations : int,
+    out_path : str,
+    equation: Equation
+):
     '''Create strange attractors and save them as images and JSON files.
-    If you want more insights into the algorithm: 
+    If you want more insights into the algorithm:
     https://pmc.ncbi.nlm.nih.gov/articles/PMC7512692/#sec3-entropy-20-00175
     https://paulbourke.net/fractals/lyapunov/
     '''
+
+    assert out_path is not None and out_path != "", "Output path must be specified"
 
     # by default create output directory and attr_number.txt if not exists
     if not os.path.exists(f"{out_path}/attr_number.txt"):
@@ -168,12 +160,13 @@ def createAttractors(examples, iterations, out_path="output"):
 
     count = 0
     pbar = tqdm(total=examples, desc="Generating attractors")
-    
+
     try: # catch keyboard interrupt to save progress
         while count < examples:
 
+            a, b = equation.random_coefs()
             lyapunov, drawit, x, y, ax, ay, xmin, xmax, ymin, ymax = compute_lyapunov(
-                iterations=iterations, discard=1000,
+                equation.step, a, b, iterations, 1000,
             )
 
             # Classify the series according to lyapunov
@@ -194,7 +187,7 @@ def createAttractors(examples, iterations, out_path="output"):
                 saveAttractor(
                     file_index,
                     out_path,
-                    None,
+                    equation.name,
                     ax, ay,
                     xmin, xmax,
                     ymin, ymax,
@@ -209,6 +202,7 @@ def createAttractors(examples, iterations, out_path="output"):
                     width=500,
                     height=500,
                     dir=out_path,
+                    maxiterations=iterations,
                     interpolation=None,
                     background_color=(255, 255, 255),
                 )
@@ -229,6 +223,7 @@ def saveAttractor(name, path, equation, a, b, xmin, xmax, ymin, ymax, x_o, y_o, 
 
     # Save the parameters in JSON format
     parameters = {
+    # TODO consider adding bounds to the metadata
         "equation": equation,
         "bounds": {
             "xmin": xmin,
@@ -249,7 +244,7 @@ def saveAttractor(name, path, equation, a, b, xmin, xmax, ymin, ymax, x_o, y_o, 
 
     suffix = 0
     while os.path.exists(os.path.join(
-        path, newname := f"{name}{"_" if str(name) else ""}{suffix}.json")):
+        path, newname := f"{name}{'_' if str(name) else ''}{suffix}.json")):
         suffix += 1
     with open(os.path.join(path, newname), "w") as f:
         json.dump(parameters, f, indent=4)
@@ -260,9 +255,9 @@ def loadAttractor(pathname):
     return parameters
 
 @numba.njit(fastmath=True)
-def compute_attractor_core(a, b, x0, y0, iters):
+def compute_attractor_core(step, a, b, x0, y0, iters):
     """Core function to compute the attractor points using Numba for speed.
-    a and b are arrays of coefficients, x0 and y0 are the seed points."""
+    step is the jitted map, a and b are arrays of coefficients, x0 and y0 are the seed points."""
     # preallocate memory
     x = np.zeros(iters)
     y = np.zeros(iters)
@@ -270,19 +265,19 @@ def compute_attractor_core(a, b, x0, y0, iters):
     y[0] = y0
 
     for i in range(1, iters):
-        prev_x = x[i-1]
-        prev_y = y[i-1]
-        x[i] = a[0] + a[1]*prev_x + a[2]*prev_y + abs(a[3]*prev_x) + abs(a[4]*prev_y)
-        y[i] = b[0] + b[1]*prev_x + b[2]*prev_y + abs(b[3]*prev_x) + abs(b[4]*prev_y)
+        x[i], y[i] = step(x[i-1], y[i-1], a, b)
     return x, y
 
 def generateAttractorFromParameters(params, iters):
     '''Interface to generate attractor points from loaded parameters.'''
 
+    equation = Equation(params["equation"])
+    # TODO consider adding bounds to the metadata
+
     # ensure numpy for numba
     a = np.array(params["coefficients"]["a"], dtype=np.float64)
     b = np.array(params["coefficients"]["b"], dtype=np.float64)
-    
+
     xmin = params["bounds"]["xmin"]
     xmax = params["bounds"]["xmax"]
     ymin = params["bounds"]["ymin"]
@@ -290,7 +285,7 @@ def generateAttractorFromParameters(params, iters):
     x0 = params["seed_point"]["x"]
     y0 = params["seed_point"]["y"]
 
-    x, y = compute_attractor_core(a, b, x0, y0, iters)
+    x, y = compute_attractor_core(equation.step, a, b, x0, y0, iters)
 
     logging.info("Attractor generated from parameters.")
     return x, y, xmin, xmax, ymin, ymax
@@ -301,27 +296,27 @@ def fast_histogram(x, y, xmin, xmax, ymin, ymax, width, height):
     Calcula el histograma 2D directamente sin crear arrays intermedios
     ni usar la lenta np.histogram2d.
     """
-    
+
     grid = np.zeros((width, height), dtype=np.float32)
     n_points = len(x)
-    
+
     scale_x = width / (xmax - xmin)
     scale_y = height / (ymax - ymin)
-    
+
     for i in numba.prange(n_points):
-        
+
         px = int((x[i] - xmin) * scale_x)
         py = int((y[i] - ymin) * scale_y)
-        
+
         if px >= width: px = width - 1
         elif px < 0: px = 0
-        
+
         if py >= height: py = height - 1
         elif py < 0: py = 0
-        
+
         # 3. Acumular
         grid[px, py] += 1.0
-        
+
     return grid
 
 def computeDensity(
@@ -329,10 +324,10 @@ def computeDensity(
     ymin, ymax,
     x, y,
     width, height,
-    density_sigma=0, 
+    density_sigma=0,
 ):
-    """Compute the log-density histogram of the attractor points (Optimized)."""
-   
+    """Compute the log-density histogram of the attractor points."""
+
     x_arr = np.asarray(x)
     y_arr = np.asarray(y)
 
@@ -340,20 +335,20 @@ def computeDensity(
 
     if not H2.any():
         logging.debug(f"Empty histogram for attractor")
-        return None 
+        return None
 
     density = H2
-    
-    if density_sigma > 0: 
+
+    if density_sigma > 0:
         density = gaussian_filter(H2, sigma=density_sigma)
-    
+
     density = np.maximum(density, 1e-10)
-    
+
     img_data = np.log1p(density) # Log transform
-    
+
     min_val = np.min(img_data)
     max_val = np.max(img_data)
-    
+
     diff = max_val - min_val
     if diff > 0:
         img_data = (img_data - min_val) / diff
@@ -390,9 +385,9 @@ def drawAttractor(
     - if experiment_name is provided, it is used as a subdirectory and prefix for the filename
     - histogram mode ignores start and end colors, will always use bicubic interpolation
     - padding only works in histogram mode
-    """            
+    """
 
-    def generateFilename(dir, experiment_name, name, interpolation, 
+    def generateFilename(dir, experiment_name, name, interpolation,
                          width, height, maxiterations, extension="png"):
         if not os.path.exists(dirpath := os.path.join(dir, experiment_name)):
             os.makedirs(dirpath, exist_ok=True) # ignoring experiment_name if empty is intentional
@@ -401,13 +396,13 @@ def drawAttractor(
         # check if file exists and if so find a new name
         suffix = 0
         while os.path.exists(os.path.join(
-            dirpath, newname := f"{name}{"_" if str(name) else ""}{suffix}.{extension}")):
+            dirpath, newname := f"{name}{'_' if str(name) else ''}{suffix}.{extension}")):
             suffix += 1
         return os.path.join(dirpath, newname)
 
 
     if interpolation == 'histogram':
-        
+
         img_data = computeDensity(
             xmin, xmax,
             ymin, ymax,
@@ -419,7 +414,7 @@ def drawAttractor(
         # Create the plot
         plt.figure(figsize=(width / 100, height / 100), dpi=100)
         plt.imshow(
-            img_data, 
+            img_data,
             origin="lower",
             interpolation="bicubic",
             cmap=cmap,
@@ -434,7 +429,7 @@ def drawAttractor(
         plt.savefig(pth, bbox_inches="tight", pad_inches=pad_size, facecolor=background)
         plt.close()
         logging.info(f"saved attractor to ./{pth}")
-    
+
     else:
         # this is mostrly deprecated as histogram method works much better, only for creating the initial images
         from colors import colorInterpolate
@@ -449,7 +444,7 @@ def drawAttractor(
             # Map the point to image coordinates
             ix = int((x[i] - xmin) / (xmax - xmin) * (width - 1))
             iy = int((y[i] - ymin) / (ymax - ymin) * (height - 1))
-            
+
             if 0 <= ix < width and 0 <= iy < height:
                 t = i / maxiterations # normalized iteration count
                 color = colorInterpolate(start_color, end_color, t, mode=interpolation)
@@ -464,10 +459,10 @@ def drawAttractor(
 def compute_attractor_pixel_rate(image_path):
     '''Get proportion of attractor pixels over total image pixels.
     Used to filter chaotic but trivial attractors.
-    '''        
+    '''
     img = plt.imread(image_path)
     total_pixels = img.shape[0] * img.shape[1]
-    
+
     if img.shape[2] == 4:
         # if the image is transparent, count only the non-transparent pixels
         occupied_pixels = np.sum(img[:, :, 3] > 0)
@@ -481,7 +476,7 @@ def compute_attractor_pixel_rate(image_path):
 #         '''Get proportion of attractor pixels over total image pixels.
 #         Used to filter chaotic but trivial attractors.
 #         Assumes rgb images (no alpha).
-#         '''        
+#         '''
 #         img = plt.imread(image_path)
 #         total_pixels = img.shape[0] * img.shape[1]
 #         black_pixels = np.sum(np.all(img[:, :, :3] == 0, axis=-1))
@@ -490,10 +485,10 @@ def compute_attractor_pixel_rate(image_path):
 # def compute_attractor_pixel_rate(image_path):
 #     '''Get proportion of attractor pixels over total image pixels.
 #     Used to filter chaotic but trivial attractors.
-#     '''        
+#     '''
 #     img = plt.imread(image_path)
 #     total_pixels = img.shape[0] * img.shape[1]
-    
+
 #     if img.shape[2] == 4:
 #         occupied_pixels = np.sum(img[:, :, :3] > 0)
 #     else:
@@ -504,6 +499,3 @@ def compute_attractor_pixel_rate(image_path):
 
 if __name__ == "__main__":
     ...
-
-
-
