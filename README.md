@@ -13,134 +13,150 @@ based on the idea of [Paul Bourke](https://paulbourke.net/fractals/lyapunov/).
 | <img src="examples/135.png" width="400"/> | <img src="examples/136.png" width="400"/> | <img src="examples/147.png" width="400"/> |
 
 ## Code examples
+Generation and rendering are configured with two dataclasses from `config.py`:
+
+- `CreateConfig(equation, base_dir="imgs", out_path=None, examples=50, iterations=100_000)`
+- `RenderConfig(base_dir="imgs", dir=None, iterations=10_000_000, width=1080, height=1080, interpolation="histogram", pad_size=0.5, filter_threshold=0.02)`
+
+If `out_path` / `dir` are not given, they default to `<base_dir>/out` and `<base_dir>/render`, so changing `base_dir` moves both.
+
 Generate attractors and save their parameters:
 ```python
-from lyapunov_exponents import createAttractor
-createAttractor(out_path="new_attractors/out", examples=100, iterations=10_000)
+from config import CreateConfig
+from equations import Equation
+from lyapunov_exponents import createAttractors
 
-# this will create 100 attractors and save their parameters in the specified folder, with
+create_cfg = CreateConfig(Equation("abs"), base_dir="new_attractors", examples=100, iterations=10_000)
+createAttractors(create_cfg)
+
+# this will create 100 attractors and save their parameters in new_attractors/out, with
 # a small 500x500 image preview for each one.
+```
+
+You can easily specify equation types using the `Equation` class, which currently supports three type of attractor equations; trigonometric (`"trig"`), absolute value (`"abs"`) and quadratic (`"quadratic"`).
+```python
+create_cfg = CreateConfig(
+    # specify your equation here
+    equation=Equation("abs", coef_bounds=(-1.0, 1.0)),
+    base_dir="new_attractors",
+)
 ```
 
 Render a specific attractor from its parameters:
 ```python
+from config import RenderConfig
 from parallel import draw_single_attractor
 from colors import create_linear_colormap, randomTriadColors
 
-colors = [randomTriadColors(100, 255)]
-
-render_kwargs = {
-        "width": 1000,
-        "height": 1000,
-        "cmap": create_linear_colormap(colors),
-        "dir": "new_attractors/renders",
-        "interpolation": "histogram",
-        "density_sigma": 0,
-        "pad_size": 0.5
-    }
-
-draw_single_attractor("new_attractors/out/attractor_0.json",
-                       render_iterations=20_000_000,
-                       **render_kwargs)
-```
-
-You can easily specify equation types using the `Equation` class, which currently supports three type of attractor equations; trigonometric, absolute value and quadratic.
-```python
-createAttractors(
-    out_path=f"{base_dir}/out",
-    examples=EXAMPLES,
-    iterations=CREATE_ITERATIONS,
-    # specify your equation here
-    equation=Equation("abs", coef_bounds=(-1.0, 1.0)),
+render_cfg = RenderConfig(
+    base_dir="new_attractors",
+    iterations=20_000_000,
+    width=1000,
+    height=1000,
 )
+
+draw_single_attractor("new_attractors/out/0_0.json",
+                      render_cfg=render_cfg,
+                      cmap=create_linear_colormap(colors=list(randomTriadColors(100, 255))))
 ```
 
 Render multiple attractors in parallel:
 ```python
-from parallel import render_attractors_in_parallel
-from multiprocessing import cpu_count
 import glob
+from multiprocessing import cpu_count
+from config import RenderConfig
+from parallel import draw_attractors_in_parallel
 from colors import create_linear_colormap
 
-RENDER_ITERS = 20_000_000 # this is a big amount but gives good quality renders
-render_kwargs = {
-        "width": 1000,
-        "height": 1000,
-        "cmap": create_linear_colormap(preset='viridis',
-            # this makes the background color white
-            recolor_base={'n':1, 'color':(255,255,255)}),
-        "dir": "new_attractors/renders",
-        "interpolation": "histogram",
-        "pad_size": 0.5
-    }
+render_cfg = RenderConfig(base_dir="new_attractors", iterations=20_000_000) # big but good quality
 
-render_attractors_in_parallel(glob.glob("new_attractors/out/*.json"),
-                              RENDER_ITERS,
-                              num_workers=cpu_count(),
-                              batch_size=50, # set this lower if you have less memory
-                              **render_kwargs)
+draw_attractors_in_parallel(
+    glob.glob("new_attractors/out/*.json"),
+    render_cfg,
+    # recolor_base makes the background color white
+    cmap=create_linear_colormap(preset='viridis', recolor_base={'n':1, 'color':(255,255,255)}),
+    n_processes=cpu_count(),
+    batch_size=50, # set this lower if you have less memory
+)
 ```
 
 Whole pipeline example: create multiple attractors, and render them in parallel with different preset and custom colormaps.
 ```python
-from parallel import draw_attractors_in_parallel, draw_single_attractor
+import glob
+from multiprocessing import cpu_count
+from config import CreateConfig, RenderConfig, BASE_DIR
 from colors import create_linear_colormap
 from equations import Equation
+from lyapunov_exponents import createAttractors
+from parallel import draw_attractors_in_parallel
 
-CREATE_ITERATIONS = 100_000
-EXAMPLES = 100
-RENDER_ITERATIONS = 20_000_000 # long processing but good rendering
-base_dir = "set_num"
+base_dir = BASE_DIR / "set_num"
+create_cfg = CreateConfig(Equation("quadratic"), base_dir=base_dir, examples=100)
+render_cfg = RenderConfig(base_dir=base_dir, iterations=20_000_000, width=1000, height=1000)
 
-render_kwargs = {
-    "width": 1000,
-    "height": 1000,
-    "cmap": create_linear_colormap(preset='viridis'),
-    "dir": f"{base_dir}/renders",
-    "interpolation": "histogram",
-    "density_sigma": 0,
-    "pad_size": 0.5
-}
-#logging.basicConfig(level=logging.INFO)
+def main():
+    createAttractors(create_cfg)
+    files = glob.glob(f"{create_cfg.out_path}/*.json")
 
-# find EXAMPLES random attractors with CREATE_ITERATIONS iters for each one
-createAttractor(
-    out_path=f"{base_dir}/out",
-    examples=EXAMPLES,
-    iterations=CREATE_ITERATIONS,
-    equation=Equation("quadratic"),
-)
+    cmaps = ['plasma', 'magma', 'viridis', 'cividis',
+             'turbo', 'summer', 'autumn', 'winter', 'copper']
+    # define a recoloring scheme to make the background white
+    recolor = {'n':1, 'color':(255,255,255), 'resample_size':512}
 
-cmaps = ['plasma', 'magma', 'viridis', 'cividis',
-            'turbo', 'summer', 'autumn', 'winter', 'copper']
-# define a recoloring scheme to make the background white
-recolor = {'n':1, 'color':(255,255,255), 'resample_size':512}
+    for cmap_name in cmaps:
+        print(f"Rendering with colormap {cmap_name}...")
+        # rendering multiple attractors is a perfect task for multiprocessing! cpu go brr
+        draw_attractors_in_parallel(
+            files,
+            render_cfg,
+            cmap=create_linear_colormap(preset=cmap_name, recolor_base=recolor),
+            n_processes=cpu_count() - 4, # leave some CPU for other tasks
+            batch_size=50,
+        )
 
-for cmap_name in cmaps:
-    print(f"Rendering with colormap {cmap_name}...")
-    render_kwargs['cmap'] = create_linear_colormap(preset=cmap_name,
-                                                    recolor_base=recolor)
-
-    # rendering multiple attracctor is a perfect task for multiprocessing! cpu go brr
-    results = draw_attractors_in_parallel(
-        glob.glob(f"{base_dir}/out/*.json"),
-        RENDER_ITERATIONS,
-        n_processes=cpu_count() - 4, # leave some CPU for other tasks
+    # custom colormap example
+    draw_attractors_in_parallel(
+        files,
+        render_cfg,
+        cmap=create_linear_colormap(colors=[(255, 0, 0), (0, 255, 0)], recolor_base=recolor),
+        n_processes=cpu_count() - 4,
         batch_size=50,
-        **render_kwargs
     )
 
-# custom colormap example
-render_kwargs['cmap'] = create_linear_colormap(colors=[(255, 0, 0),(0, 255, 0)] ,
-                                                recolor_base=recolor)
-results = draw_attractors_in_parallel(
-        glob.glob(f"{base_dir}/out/*.json"),
-        RENDER_ITERATIONS,
-        n_processes=cpu_count() - 4, # leave some CPU for other tasks
-        batch_size=50,
-        **render_kwargs
-    )
+if __name__ == "__main__":
+    main() # needed for multiprocessing on macOS
 ```
+
+### Colour options
+All renders take a matplotlib colormap through `cmap`, usually built with `create_linear_colormap` from `colors.py`. With testing, the best results seem to come both from some matplotlib presets (`magma`, `plasma`, `Greys`, `gray`, `bone`, `copper`, `twilight`, `hot`...) and the `randomCyclicColormap`'s, which are designed to start and end at the same colour.
+
+```python
+from colors import (create_linear_colormap, randomTriadColors,
+                    randomComplementaryColors, randomColoursGoldenRatio, randomCyclicColormap)
+
+# matplotlib preset
+# https://matplotlib.org/stable/users/explain/colors/colormaps.html
+cmap = create_linear_colormap(preset="magma")
+
+# custom gradient from RGB (0-255) tuples, evenly spaced
+cmap = create_linear_colormap(colors=[(0, 0, 0), (2, 24, 107), (255, 145, 0)])
+
+# custom gradient with explicit positions (0 to 1, one per colour)
+cmap = create_linear_colormap(colors=[(255, 255, 255), (2, 24, 107), (255, 145, 0), (255, 255, 255)],
+                              positions=[0.0, 0.4, 0.8, 1.0])
+
+# replace the lowest n colours, i.e. the background, with a fixed colour (white here)
+cmap = create_linear_colormap(preset="viridis", recolor_base={'n': 1, 'color': (255, 255, 255)})
+
+# random harmonious palettes
+cmap = create_linear_colormap(colors=list(randomTriadColors(100, 255)))
+cmap = create_linear_colormap(colors=list(randomComplementaryColors()))
+cmap = create_linear_colormap(colors=randomColoursGoldenRatio(n=4))
+
+# random cyclic colormaps (start and end on the same colour), returns a list
+cmaps = randomCyclicColormap(5)
+```
+With no arguments `create_linear_colormap()` returns `magma`.
 
 ---
 

@@ -13,6 +13,7 @@ from PIL import Image, ImageDraw
 from scipy.ndimage import gaussian_filter
 from tqdm import tqdm
 
+from config import RenderConfig, CreateConfig
 from equations import Equation
 
 @numba.njit(fastmath=True)
@@ -134,17 +135,17 @@ def compute_lyapunov(step, a, b, iterations, discard=1000):
 
     return lyapunov, drawit, x, y, a, b, xmin, xmax, ymin, ymax
 
-def createAttractors(
-    examples : int,
-    iterations : int,
-    out_path : str,
-    equation: Equation
-):
+def createAttractors(create_cfg: CreateConfig):
     '''Create strange attractors and save them as images and JSON files.
     If you want more insights into the algorithm:
     https://pmc.ncbi.nlm.nih.gov/articles/PMC7512692/#sec3-entropy-20-00175
     https://paulbourke.net/fractals/lyapunov/
     '''
+
+    out_path = create_cfg.out_path
+    examples = create_cfg.examples
+    iterations = create_cfg.iterations
+    equation = create_cfg.equation
 
     assert out_path is not None and out_path != "", "Output path must be specified"
 
@@ -199,11 +200,13 @@ def createAttractors(
                     xmin, xmax,
                     ymin, ymax,
                     x, y,
-                    width=500,
-                    height=500,
-                    dir=out_path,
-                    maxiterations=iterations,
-                    interpolation=None,
+                    render_cfg=RenderConfig(
+                        dir=out_path,
+                        iterations=iterations,
+                        width=500,
+                        height=500,
+                        interpolation=None,
+                    ),
                     background_color=(255, 255, 255),
                 )
                 file_index += 1
@@ -220,7 +223,6 @@ def createAttractors(
 
 
 def saveAttractor(name, path, equation, a, b, xmin, xmax, ymin, ymax, x_o, y_o, lyapunov):
-
     # Save the parameters in JSON format
     parameters = {
     # TODO consider adding bounds to the metadata
@@ -249,7 +251,8 @@ def saveAttractor(name, path, equation, a, b, xmin, xmax, ymin, ymax, x_o, y_o, 
     with open(os.path.join(path, newname), "w") as f:
         json.dump(parameters, f, indent=4)
 
-def loadAttractor(pathname):
+def loadAttractor(pathname) -> dict:
+    '''Load and return params with the JSON format in saveAttractor.'''
     with open(f"{pathname}", "r") as f:
         parameters = json.load(f)
     return parameters
@@ -257,7 +260,10 @@ def loadAttractor(pathname):
 @numba.njit(fastmath=True)
 def compute_attractor_core(step, a, b, x0, y0, iters):
     """Core function to compute the attractor points using Numba for speed.
-    step is the jitted map, a and b are arrays of coefficients, x0 and y0 are the seed points."""
+    step is the jitted map, a and b are arrays of coefficients,
+    x0 and y0 are the seed points.
+    Returns the computed x and y arrays containing the attractor points.
+    """
     # preallocate memory
     x = np.zeros(iters)
     y = np.zeros(iters)
@@ -268,9 +274,10 @@ def compute_attractor_core(step, a, b, x0, y0, iters):
         x[i], y[i] = step(x[i-1], y[i-1], a, b)
     return x, y
 
-def generateAttractorFromParameters(params, iters):
-    '''Interface to generate attractor points from loaded parameters.'''
-
+def generateAttractorFromParameters(params : dict, iters : int):
+    '''Interface to generate attractor points from loaded parameters.
+    Returns the computed x and y arrays along with the bounds of the attractor.
+    '''
     equation = Equation(params["equation"])
     # TODO consider adding bounds to the metadata
 
@@ -293,8 +300,8 @@ def generateAttractorFromParameters(params, iters):
 @numba.njit(fastmath=True, parallel=False)
 def fast_histogram(x, y, xmin, xmax, ymin, ymax, width, height):
     """
-    Calcula el histograma 2D directamente sin crear arrays intermedios
-    ni usar la lenta np.histogram2d.
+    Calculate 2D histogram directly without creating intermediate arrays
+    or using np.histogram2d.
     """
 
     grid = np.zeros((width, height), dtype=np.float32)
@@ -363,18 +370,18 @@ def drawAttractor(
     xmin, xmax,
     ymin, ymax,
     x, y,
-    width=800,
-    height=800,
+
+    render_cfg : RenderConfig,
+    filter_threshold=0.02,
+
+    # TODO tbd. what to do with this.
+    cmap=None,  # Colormap for histogram mode
+    density_sigma=0,  # Gaussian smoothing for histogram mode
+    experiment_name="",
+
     start_color=(0, 0, 0),
     end_color=(0, 0, 0),
     background_color=None,
-    dir="output",
-    maxiterations=100_000,
-    interpolation='histogram',
-    experiment_name="",
-    density_sigma=0,  # Gaussian smoothing for histogram mode
-    cmap='magma',  # Colormap for histogram mode
-    pad_size=20,
 ):
     """Create an image of the attractor using the provided parameters.
     Interplation is the function used to assign colors to points. The current best option
@@ -386,6 +393,9 @@ def drawAttractor(
     - histogram mode ignores start and end colors, will always use bicubic interpolation
     - padding only works in histogram mode
     """
+
+    if render_cfg.interpolation == 'histogram':
+        assert cmap is not None, "At least one colormap must be specified for histogram interpolation"
 
     def generateFilename(dir, experiment_name, name, interpolation,
                          width, height, maxiterations, extension="png"):
@@ -400,19 +410,20 @@ def drawAttractor(
             suffix += 1
         return os.path.join(dirpath, newname)
 
+    W, H = render_cfg.width, render_cfg.height
 
-    if interpolation == 'histogram':
+    if render_cfg.interpolation == 'histogram':
 
         img_data = computeDensity(
             xmin, xmax,
             ymin, ymax,
             x, y,
-            width, height,
+            W, H,
             density_sigma,
         )
 
         # Create the plot
-        plt.figure(figsize=(width / 100, height / 100), dpi=100)
+        plt.figure(figsize=(W / 100, H / 100), dpi=100)
         plt.imshow(
             img_data,
             origin="lower",
@@ -423,35 +434,39 @@ def drawAttractor(
         plt.tight_layout()
 
         # Save the image
-        pth = generateFilename(dir, experiment_name, name, interpolation, width, height, maxiterations)
+        pth = generateFilename(render_cfg.dir, experiment_name, name, render_cfg.interpolation,
+                               W, H, render_cfg.iterations)
         # TODO for alpha, something like np.array((*color, 1.0))??
         background = tuple(c / 255 for c in background_color) if background_color else tuple(cmap(0)[:3])
-        plt.savefig(pth, bbox_inches="tight", pad_inches=pad_size, facecolor=background)
+        plt.savefig(pth, bbox_inches="tight", pad_inches=render_cfg.pad_size, facecolor=background)
         plt.close()
         logging.info(f"saved attractor to ./{pth}")
 
     else:
-        # this is mostrly deprecated as histogram method works much better, only for creating the initial images
+        # this is mostly deprecated as histogram method works much better, only for creating the initial images
         from colors import colorInterpolate
         if background_color:
-            img = Image.new("RGB", (width, height), background_color)
+            img = Image.new("RGB", (W, H), background_color)
         else:
-            img = Image.new("RGB", (width, height))
+            img = Image.new("RGB", (W, H))
         draw = ImageDraw.Draw(img)
 
         # iterate through all points and draw them with the color interpolated
-        for i in range(1, maxiterations):
+        n_points = min(len(x), render_cfg.iterations)
+        for i in range(1, n_points):
             # Map the point to image coordinates
-            ix = int((x[i] - xmin) / (xmax - xmin) * (width - 1))
-            iy = int((y[i] - ymin) / (ymax - ymin) * (height - 1))
+            ix = int((x[i] - xmin) / (xmax - xmin) * (W - 1))
+            iy = int((y[i] - ymin) / (ymax - ymin) * (H - 1))
 
-            if 0 <= ix < width and 0 <= iy < height:
-                t = i / maxiterations # normalized iteration count
-                color = colorInterpolate(start_color, end_color, t, mode=interpolation)
+            if 0 <= ix < W and 0 <= iy < H:
+                t = i / n_points # normalized iteration count
+                color = colorInterpolate(start_color, end_color,
+                                         t, mode=render_cfg.interpolation)
                 draw.point((ix, iy), fill=color)
 
         # Save and create dirs, names, etc
-        pth = generateFilename(dir, experiment_name, name, interpolation, width, height, maxiterations)
+        pth = generateFilename(render_cfg.dir, experiment_name, name, render_cfg.interpolation,
+                               W, H, render_cfg.iterations)
         # TODO add padding option for non-histogram mode
         img.save(pth, "PNG")
         logging.info(f"saved attractor to ./{pth}")

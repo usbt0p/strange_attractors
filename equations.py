@@ -1,5 +1,3 @@
-import math
-
 import numba
 import numpy as np
 
@@ -8,7 +6,6 @@ class Equation:
     '''
     An attractor map specification:
         name: identifier saved in the JSON files
-        step: @numba.njit function (prev_x, prev_y, a, b) -> (x, y)
         coef_bounds: (low, high) bounds for the random coefficients
     '''
 
@@ -33,9 +30,6 @@ class Equation:
         lo, hi = self.coef_bounds
         return (np.random.uniform(lo, hi, self.n_coefs),
                 np.random.uniform(lo, hi, self.n_coefs))
-
-    def step(self, px, py, a, b): # just a wrapper so that calls are for a method
-        return self.step(px, py, a, b)
 
 # TODO will cache=True help speed??
 @numba.njit(fastmath=True)
