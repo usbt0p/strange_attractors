@@ -1,0 +1,20 @@
+.gitignore
+  h_81c0abe17bcbc9 16
+config.py
+  h_81c0abe17bcbc9 18
+main.py
+  h_81c0abe17bcbc9 3,10-19,28-29,32,36
+parallel.py
+  h_81c0abe17bcbc9 4-6,8-9,11,43-44,54-58,60,76,86-101
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "3fbc98944a72ee18672ed8555b1077134464a172",
+  "prompts": {},
+  "humans": {
+    "h_81c0abe17bcbc9": {
+      "author": "Lucas Canle de Andres <lucascda@inditex.com>"
+    }
+  }
+}
