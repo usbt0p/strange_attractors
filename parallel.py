@@ -1,13 +1,14 @@
-
-from multiprocessing import Pool, cpu_count
-from functools import partial
 import os
 import logging
 from tqdm import tqdm
-from lyapunov_exponents import loadAttractor, generateAttractorFromParameters, drawAttractor
-from config import RenderConfig
+from functools import partial
+from multiprocessing import Pool, cpu_count
 
-def draw_single_attractor(filename, render_cfg : RenderConfig, cmap):
+from config import RenderConfig
+from lyapunov_exponents import loadAttractor, generateAttractorFromParameters, drawAttractor
+from lyapunov_exponents import compute_attractor_pixel_rate
+
+def draw_single_attractor(filename : str, render_cfg : RenderConfig, cmap):
     """Worker function to render a single attractor file
     from its parameters.
     This is designed to be as a worker function for multiprocessing, or
@@ -39,8 +40,8 @@ def draw_single_attractor(filename, render_cfg : RenderConfig, cmap):
         raise e
 
 def draw_attractors_in_parallel(
-    filenames,
-    render_cfg,
+    filenames : list[str],
+    render_cfg : RenderConfig,
     cmap,
     n_processes=cpu_count()-2,
     batch_size=20,
@@ -48,10 +49,15 @@ def draw_attractors_in_parallel(
     """Render multiple attractor files in parallel using multiprocessing.
     Sets up a pool of worker processes and processes in batches to manage memory usage.
     """
-
     logging.info(f"Processing {len(filenames)} files using {n_processes} processes...")
 
+    filenames = filter_attr_files(filenames, threshold=render_cfg.filter_threshold)
+
+    os.makedirs(render_cfg.dir, exist_ok=True)
+    print(f"Rendering directory: {render_cfg.dir}")
+
     try:
+        # TODO make this less verbose
         for i in range(0, len(filenames), batch_size):
             print(f"Batch {i//batch_size + 1}: processing files {i+1} to {min(i + batch_size, len(filenames))}...")
             batch = filenames[i:i + batch_size] # this is mapped to the worker
@@ -67,6 +73,7 @@ def draw_attractors_in_parallel(
                     total=len(batch),
                     desc="Rendering..."
                 ))
+
             # results summary
             successful = sum(1 for r in results if r.startswith("Successfully"))
             failed = len(results) - successful
@@ -76,3 +83,19 @@ def draw_attractors_in_parallel(
         print("Process interrupted by user. Exiting...")
 
     return results
+
+def filter_attr_files(in_filenames : list[str], threshold : float = 0.02):
+    """Hard-filter out unimportant attractors by removing the ones
+    with little 'pixel density'.
+    """
+    files = []
+    for file in in_filenames:
+        js = os.path.splitext(file)[0] + ".png"
+        if os.path.exists(js) and compute_attractor_pixel_rate(js) > threshold:
+            files.append(file)
+
+    print(f'{len(in_filenames)=}, {len(files)=}')
+    assert len(in_filenames) > len(files) > 0
+    print("Filtered: ", f'{len(in_filenames)=}, {len(files)=}')
+
+    return files

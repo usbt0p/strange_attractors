@@ -13,5 +13,6 @@ ignoreme_*
 *.zip
 !requirements.txt
 *.json
+.DS_Store
 
 !examples/*.png

@@ -15,7 +15,7 @@ class RenderConfig:
     height: int = 1080
     interpolation: str = "histogram"
     pad_size: float = 0.5
-    filter_threshold: float = 0.02
+    filter_threshold: float = 0.03
 
     def __post_init__(self):
         if self.dir is None:
