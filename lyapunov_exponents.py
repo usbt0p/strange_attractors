@@ -185,11 +185,12 @@ def createAttractors(create_cfg: CreateConfig):
                             "normalized_lyapunov": lyapunov / (iterations - 1000)}
             # Save the image
             if drawit:
+                coef_a, coef_b = equation.coefs_of(ax, ay)
                 saveAttractor(
                     file_index,
                     out_path,
                     equation.name,
-                    ax, ay,
+                    coef_a, coef_b,
                     xmin, xmax,
                     ymin, ymax,
                     x[0], y[0],
@@ -372,8 +373,6 @@ def drawAttractor(
     x, y,
 
     render_cfg : RenderConfig,
-    filter_threshold=0.02,
-
     # TODO tbd. what to do with this.
     cmap=None,  # Colormap for histogram mode
     density_sigma=0,  # Gaussian smoothing for histogram mode
