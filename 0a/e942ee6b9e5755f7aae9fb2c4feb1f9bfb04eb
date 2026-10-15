@@ -1,0 +1,19 @@
+lyapunov_exponents.py
+  s_06d685ca02e457::t_415707d23825cd 188,193
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "0ae942ee6b9e5755f7aae9fb2c4feb1f9bfb04eb",
+  "prompts": {},
+  "sessions": {
+    "s_06d685ca02e457": {
+      "agent_id": {
+        "tool": "github-copilot",
+        "id": "ba138936-721e-46da-8b4a-3e8d4f3e4076",
+        "model": "copilot/claude-haiku-5.5"
+      },
+      "human_author": "Lucas Canle de Andres <lucascda@inditex.com>"
+    }
+  }
+}
