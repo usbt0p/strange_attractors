@@ -13,7 +13,7 @@ class RenderConfig:
     iterations: int = 10_000_000
     width: int = 1080
     height: int = 1080
-    interpolation: str = "histogram"
+    interpolation: str | None = "histogram"
     pad_size: float = 0.5
     filter_threshold: float = 0.03
 
