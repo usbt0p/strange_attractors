@@ -1,0 +1,22 @@
+README.md
+  h_81c0abe17bcbc9 26,29,36,40,89,94,230,234
+equations.py
+  h_81c0abe17bcbc9 1-2,5-6,9,11,13-36,62-102
+expressions.py
+  h_81c0abe17bcbc9 99-105,164,167,179-181,184,186,188,194
+lyapunov_exponents.py
+  h_81c0abe17bcbc9 17,192,288-290
+main.py
+  h_81c0abe17bcbc9 4,11
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "a02df1aa7cdba1bc288308b23e3cd8c531aaca0b",
+  "prompts": {},
+  "humans": {
+    "h_81c0abe17bcbc9": {
+      "author": "Lucas Canle de Andres <lucascda@inditex.com>"
+    }
+  }
+}
