@@ -23,21 +23,21 @@ If `out_path` / `dir` are not given, they default to `<base_dir>/out` and `<base
 Generate attractors and save their parameters:
 ```python
 from config import CreateConfig
-from equations import Equation
+from equations import BuiltinEquation
 from lyapunov_exponents import createAttractors
 
-create_cfg = CreateConfig(Equation("abs"), base_dir="new_attractors", examples=100, iterations=10_000)
+create_cfg = CreateConfig(BuiltinEquation("abs"), base_dir="new_attractors", examples=100, iterations=10_000)
 createAttractors(create_cfg)
 
 # this will create 100 attractors and save their parameters in new_attractors/out, with
 # a small 500x500 image preview for each one.
 ```
 
-You can easily specify equation types using the `Equation` class, which currently supports three type of attractor equations; trigonometric (`"trig"`), absolute value (`"abs"`) and quadratic (`"quadratic"`).
+You can easily specify equation types using the `BuiltinEquation` class, which currently supports three type of attractor equations; trigonometric (`"trig"`), absolute value (`"abs"`) and quadratic (`"quadratic"`).
 ```python
 create_cfg = CreateConfig(
     # specify your equation here
-    equation=Equation("abs", coef_bounds=(-1.0, 1.0)),
+    equation=BuiltinEquation("abs", coef_bounds=(-1.0, 1.0)),
     base_dir="new_attractors",
 )
 ```
@@ -86,12 +86,12 @@ import glob
 from multiprocessing import cpu_count
 from config import CreateConfig, RenderConfig, BASE_DIR
 from colors import create_linear_colormap
-from equations import Equation
+from equations import BuiltinEquation
 from lyapunov_exponents import createAttractors
 from parallel import draw_attractors_in_parallel
 
 base_dir = BASE_DIR / "set_num"
-create_cfg = CreateConfig(Equation("quadratic"), base_dir=base_dir, examples=100)
+create_cfg = CreateConfig(BuiltinEquation("quadratic"), base_dir=base_dir, examples=100)
 render_cfg = RenderConfig(base_dir=base_dir, iterations=20_000_000, width=1000, height=1000)
 
 def main():
@@ -227,11 +227,11 @@ When generating with different equations, you'll notice big differences between 
 
 ```python
 import time, numpy as np
-from equations import Equation
+from equations import BuiltinEquation
 from lyapunov_exponents import compute_attractor_core
 
 for name in ("abs", "trig", "quadratic"):
-    eq = Equation(name)
+    eq = BuiltinEquation(name)
     a, b = eq.random_coefs()
     compute_attractor_core(eq.step, a, b, 0.1, 0.1, 100)  # warm-up / compile
     t = time.perf_counter()

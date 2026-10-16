@@ -14,7 +14,7 @@ from scipy.ndimage import gaussian_filter
 from tqdm import tqdm
 
 from config import RenderConfig, CreateConfig
-from equations import Equation
+from equations import equation_from_json
 
 @numba.njit(fastmath=True)
 def compute_lyapunov(step, a, b, iterations, discard=1000):
@@ -189,7 +189,7 @@ def createAttractors(create_cfg: CreateConfig):
                 saveAttractor(
                     file_index,
                     out_path,
-                    equation.name,
+                    equation.to_json(),
                     coef_a, coef_b,
                     xmin, xmax,
                     ymin, ymax,
@@ -279,12 +279,14 @@ def generateAttractorFromParameters(params : dict, iters : int):
     '''Interface to generate attractor points from loaded parameters.
     Returns the computed x and y arrays along with the bounds of the attractor.
     '''
-    equation = Equation(params["equation"])
     # TODO consider adding bounds to the metadata
 
     # ensure numpy for numba
     a = np.array(params["coefficients"]["a"], dtype=np.float64)
     b = np.array(params["coefficients"]["b"], dtype=np.float64)
+
+    equation = equation_from_json(params["equation"])
+    a, b = equation.from_coefs(a, b)
 
     xmin = params["bounds"]["xmin"]
     xmax = params["bounds"]["xmax"]

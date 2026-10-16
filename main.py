@@ -1,14 +1,14 @@
 from parallel import draw_attractors_in_parallel, draw_single_attractor
 from colors import create_linear_colormap, randomCyclicColormap
 from lyapunov_exponents import createAttractors
-from equations import Equation
+from equations import BuiltinEquation
 from config import RenderConfig, CreateConfig, BASE_DIR
 
 import os; import glob
 
 base_dir = BASE_DIR / "config_changes2"
 create_cfg = CreateConfig(
-    Equation('trig'),
+    BuiltinEquation('trig'),
     base_dir=base_dir,
     examples=50,
     iterations=100_000,

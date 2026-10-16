@@ -1,11 +1,39 @@
+from abc import ABC, abstractmethod
+
 import numba
 import numpy as np
+from expressions import (compile_system, program_coefs, program_step,
+                         random_program_coefs, set_program_coefs)
 
 
-class Equation:
+class Equation(ABC):
     '''
-    An attractor map specification:
+    Interface of an attractor map used by createAttractors:
         name: identifier saved in the JSON files
+        step: jitted map (px, py, a, b) -> (x, y)
+    '''
+    name: str
+
+    @abstractmethod
+    def random_coefs(self):
+        pass
+
+    @abstractmethod
+    def coefs_of(self, a, b):
+        pass
+
+    @abstractmethod
+    def to_json(self):
+        pass
+
+    @abstractmethod
+    def from_coefs(self, a, b):
+        pass
+
+
+class BuiltinEquation(Equation):
+    '''
+    A hand-written map: "abs", "quadratic" or "trig".
         coef_bounds: (low, high) bounds for the random coefficients
     '''
 
@@ -30,6 +58,47 @@ class Equation:
         lo, hi = self.coef_bounds
         return (np.random.uniform(lo, hi, self.n_coefs),
                 np.random.uniform(lo, hi, self.n_coefs))
+
+    def coefs_of(self, a, b):
+        return a, b
+
+    def to_json(self):
+        return self.name
+
+    def from_coefs(self, a, b):
+        return a, b
+
+
+class DynamicEquation(Equation):
+    '''Equation compiled from user strings and run by the stack machine.'''
+
+    def __init__(self, name, x_src, y_src, coef_bounds=(-3.0, 3.0)):
+        self.name = name
+        self.x_src, self.y_src = x_src, y_src
+        self.coef_bounds = coef_bounds
+        self.template_a, self.template_b = compile_system(x_src, y_src)
+        self.step = program_step
+
+    def random_coefs(self):
+        lo, hi = self.coef_bounds
+        return (random_program_coefs(self.template_a, lo, hi),
+                random_program_coefs(self.template_b, lo, hi))
+
+    def coefs_of(self, a, b):
+        return program_coefs(a), program_coefs(b)
+
+    def to_json(self):
+        return {"name": self.name, "x": self.x_src, "y": self.y_src}
+
+    def from_coefs(self, a, b):
+        return set_program_coefs(self.template_a, a), set_program_coefs(self.template_b, b)
+
+
+def equation_from_json(spec):
+    '''Build the equation saved in the "equation" field of a JSON file.'''
+    if isinstance(spec, dict):
+        return DynamicEquation(spec["name"], spec["x"], spec["y"])
+    return BuiltinEquation(spec)
 
 # TODO will cache=True help speed??
 @numba.njit(fastmath=True)

@@ -96,6 +96,13 @@ def program_coefs(prog):
     return prog[HEADER:HEADER + int(prog[0])].copy()
 
 
+def set_program_coefs(prog, coefs):
+    """Return a copy of prog with its coefficient slots set to coefs."""
+    prog = prog.copy()
+    prog[HEADER:HEADER + len(coefs)] = coefs
+    return prog
+
+
 # error_model="numpy" makes division by zero give inf/nan instead of raising
 @numba.njit(fastmath=True, error_model="numpy")
 def run_program(prog, px, py):
@@ -151,30 +158,13 @@ def run_program(prog, px, py):
 def program_step(px, py, a, b):
     return run_program(a, px, py), run_program(b, px, py)
 
-# TODO make abstract with normal eqs
-class ProgramEquation:
-    """Equation built from strings, with the interface createAttractors expects."""
-
-    def __init__(self, name, x_src, y_src, coef_bounds=(-3.0, 3.0)):
-        self.name = name
-        self.coef_bounds = coef_bounds
-        self.template_a, self.template_b = compile_system(x_src, y_src)
-        self.step = program_step
-
-    def random_coefs(self):
-        lo, hi = self.coef_bounds
-        return (random_program_coefs(self.template_a, lo, hi),
-                random_program_coefs(self.template_b, lo, hi))
-
-    def coefs_of(self, a, b):
-        return program_coefs(a), program_coefs(b)
-
 
 if __name__ == "__main__":
     from config import CreateConfig, RenderConfig
-    from equations import abs_step
+    from equations import DynamicEquation, abs_step
     from lyapunov_exponents import compute_lyapunov, createAttractors
     from parallel import draw_attractors_in_parallel
+    from colors import create_linear_colormap
     import glob
 
     # the same map as abs_step, written as strings, must give the same point
@@ -186,30 +176,22 @@ if __name__ == "__main__":
     print("matches abs_step:", same)
 
     # # a string equation run through createAttractors, saves images and JSON files
-    # equation = ProgramEquation("sine_map", "a0 + a1*abs(x) + a2*y", "b0 + b1*cos(y) + b2*x")
-    # createAttractors(CreateConfig(equation=equation, out_path="imgs/program_example2",
-    #                               examples=50, iterations=20_000))
+    equation = DynamicEquation("sine_map", "a0 + a1*abs(x) + a2*y", "b0 + b1*cos(y) + b2*x")
+    createAttractors(CreateConfig(equation=equation, out_path="imgs/program_example3",
+                                  examples=50, iterations=20_000))
 
     render_cfg = RenderConfig(
-        dir="imgs/program_example2",
+        dir="imgs/program_example3",
         iterations=50_000_000,
+        interpolation="histogram",
     )
-    files = glob.glob("imgs/program_example2/*.json")
+    files = glob.glob("imgs/program_example3/*.json")
 
     for cmap in ["binary", "gray", "twilight", 'hot']:
         draw_attractors_in_parallel(
             files,
             render_cfg,
-            cmap=cmap,
+            cmap=create_linear_colormap(preset=cmap),
             n_processes=5,
             batch_size=10
         )
-
-
-
-    # a new equation that is not in equations.py
-    # while True:
-    #     a, b = compile_system("a0 + a1*sin(x) - a2*y**2", "b0 + b1*abs(x) + b2*cos(y)")
-    #     a, b = random_program_coefs(a), random_program_coefs(b)
-    #     lyap, drawit, x, y, *_ = compute_lyapunov(program_step, a, b, 100_000, 1000)
-    #     print(f"lyapunov={lyap:.3f} drawit={drawit} last point=({x[-1]:.3f}, {y[-1]:.3f})")
