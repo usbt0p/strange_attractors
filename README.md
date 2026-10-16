@@ -41,6 +41,28 @@ create_cfg = CreateConfig(
     base_dir="new_attractors",
 )
 ```
+Additionally, you can create your own custom equations by using `DynamicEquation`. This class takes three arguments: a name and two strings representing the equations for `x` and `y`. The variables `x`, `y`, and the coefficients `a0...aN` and `b0..bN` are available for use in the equations, and the supported operators and functions as of now are:
+`+  -  *  /  **  abs()  sin()  cos()`.
+
+The class will automatically parse the strings using `ast`, translate them into intermediate opcodes, and compile them into a numba JIT function for fast execution. The coefficients are randomly generated within the specified bounds like for the builtin equations, and the number of coefficients is determined by the highest index used in the equation specification you write.
+An example would look like this:
+```python
+# this mixes properties of the absolute value and trigonometric equations
+equation = DynamicEquation(
+        "sine_map", 
+        "a0 + a1*abs(x) + a2*y", 
+        "b0 + b1*cos(y) + b2*x"
+    )
+    out = BASE_DIR / "program_example3"
+    createAttractors(
+        CreateConfig(
+            equation=equation,
+            out_path=out,
+            examples=50,
+            iterations=20_000,
+        )
+    )
+```
 
 Render a specific attractor from its parameters:
 ```python

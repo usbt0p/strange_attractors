@@ -26,7 +26,7 @@ def main():
 
     input_files = glob.glob(f"{create_cfg.out_path}/*.json")
     cmaps = ["binary", "gray", "twilight"] #, "hot", "magma"]
-    cmaps.extend(randomCyclicColormap(5))
+    #cmaps.extend(randomCyclicColormap(5))
 
     for cmap_name in cmaps:
         print('#'*20, end='\n'); print(f"Rendering with colormap {cmap_name}..."); print('#'*20, end='\n\n')

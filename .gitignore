@@ -11,6 +11,7 @@ ignoreme_*
 *.mp4
 *.txt
 *.zip
+*.xcf
 !requirements.txt
 *.json
 .DS_Store
